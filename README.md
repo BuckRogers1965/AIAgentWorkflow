@@ -108,10 +108,10 @@ One of the things that really helps when building workflows is to create smaller
 
 To Do: 
 
--GUI
--Sandbox the dynamic functions to ensure they are safe.
--Set it up so the program can accept inputs from multiple config files, so you can have a system config file, and a config file with works in progress. 
--Collaborate with others to build out 1000's of agents to do everything and connect to everything.
+- [ ] GUI
+- [ ] Sandbox the dynamic functions to ensure they are safe.
+- [ ] Set it up so the program can accept inputs from multiple config files, so you can have a system config file, and a config file with works in progress. 
+- [ ] Collaborate with others to build out 1000's of agents to do everything and connect to everything.
 
 
 
