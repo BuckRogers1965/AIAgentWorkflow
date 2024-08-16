@@ -1,0 +1,2703 @@
+{
+    "workflow_settings": {
+    "max_depth": 20,
+    "log_text_limit": 500
+    },
+    "aliases": {
+        "hosts": {
+            "default": "ollama",
+            "high_performance": "gpu_cluster",
+            "low_latency": "edge_device"
+        },
+        "models": {
+            "default": "zephyr:latest",
+            "translate": "llama2:multilingual",
+            "big_model": "gpt4:latest",
+            "sd": "aZovyaRPGArtistTools_v3.safetensors"
+        }
+    },
+    "hosts": {
+        "ollama": {
+            "url": "http://192.168.1.179:11434",
+            "service": "ollama"
+        },
+        "stable_diffusion": {
+            "url": "http://192.168.1.57:7860",
+            "service": "automatic1111"
+        },
+        "opengpt": {
+            "url": "https://api.openai.com",
+            "service": "opengpt"
+        },
+        "echo": {
+            "url": "http://127.0.0.1:12345",
+            "service": "ollama"
+        },
+        "google": {
+            "url": "https://generativelanguage.googleapis.com",
+            "service": "gemini"
+        }
+    },
+    "services": {
+        "ollama": {
+            "format": "json",
+            "speclink": "",
+            "api_key": "",
+            "apicalls": {
+                "prompting": {
+                    "response_extraction": {
+                        "selector": "response",
+                        "fallback": "full_response"
+                    },
+                    "endpoint": "/api/generate",
+                    "prompt": "{\"model\": \"{model}\", \"prompt\": \"{prompt}\", \"stream\": false, \"options\": {\"num_thread\": 8, \"num_ctx\": 2024}}"
+                },
+                "model_list": {
+                    "response_extraction": {
+                        "selector": "response",
+                        "fallback": "full_response"
+                    },
+                    "endpoint": "/api/tags",
+                    "prompt": ""
+                }
+            }
+        },
+        "chatgpt": {
+            "format": "json",
+            "speclink": "",
+            "api_key": "",
+            "apicalls": {
+                "prompting": {
+                    "endpoint": "/v1/completions/",
+                    "prompt": "{\"model\": \"{model}\", \"prompt\": \"{prompt}\", \"stream\": false, \"options\": {\"num_thread\": 8, \"num_ctx\": 2024}}"
+                }
+            },
+            "model_list": {
+                "prompting": {
+                    "endpoint": "/v1/models",
+                    "prompt": "{\"model\": \"{model}\", \"prompt\": \"{prompt}\", \"stream\": false, \"options\": {\"num_thread\": 8, \"num_ctx\": 2024}}"
+                }
+            },
+            "image": {
+                "prompting": {
+                    "endpoint": "/v1/images/generations",
+                    "prompt": "{\"model\": \"{model}\", \"prompt\": \"{prompt}\", \"stream\": false, \"options\": {\"num_thread\": 8, \"num_ctx\": 2024}}"
+                }
+            }
+        },
+        "automatic1111": {
+            "format": "json",
+            "speclink": "https://github.com/AUTOMATIC1111/stable-diffusion-webui/discussions/3734",
+            "speclink2": "https://randombits.dev/articles/stable-diffusion/template",
+            "api_key": "<XOR-encrypted-API-key-dev>",
+            "apicalls": {
+                "template": {
+                    "response_extraction": {
+                        "selector": "images.4.].-1",
+                        "fallback": "full_response"
+                    },
+                    "endpoint": "/sdapi/v1/template",
+                    "prompt2": "{\"prompt\": \"{prompt}\", \"steps\": {steps}, \"sampler_name\": \"{sampler_name}\"}",
+                    "prompt": "{\"prompt\": \"{prompt}\", \"negative_prompt\": \"\", \"sampler_name\": \"{sampler_name}\", \"steps\": {steps}, \"cfg_scale\": 6, \"height\": 512, \"width\": 512,\"seed\": -1}"
+                },
+                "img2img": {
+                    "response_extraction": {
+                        "selector": "response",
+                        "fallback": "full_response"
+                    },
+                    "endpoint": "/sdapi/v1/img2img",
+                    "prompt": "{\"prompt\": \"{prompt}\", \"count\": {count}, \"steps\": {steps}, \"sampler_name\": \"{sampler_name}\"}"
+                }
+            }
+        }
+    },
+    "agents": {
+        "singleton": {
+            "type": "workflow",
+            "help": "A singleton entry to allow agents to execute.",
+            "inputs": [],
+            "optional_inputs": [],
+            "outputs": [
+                "image"
+            ],
+            "prompt": "{prompt}",
+            "steps": [
+                {
+                    "agent": "{agent}",
+                    "host": "stable_diffusion",
+                    "model": "",
+                    "api_call": "prompting",
+                    "params": {
+                        "topic": "$CLI_topic",
+                        "thesis": "$CLI_thesis",
+                        "essay": "$fact_checked_essay",
+                        "tone": "$CLI_tone"
+                    },
+                    "output": [
+                        "results"
+                    ]
+                }
+            ]
+        },
+        "file_copy_workflow": {
+            "type": "workflow",
+            "help": "Read from one file and write to another.",
+            "inputs": [
+                "input_filename",
+                "output_filename"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "success"
+            ],
+            "steps": [
+                {
+                    "agent": "read_file",
+                    "params": {
+                        "file_name": "$input_filename"
+                    },
+                    "output": [
+                        "file_content"
+                    ]
+                },
+                {
+                    "agent": "write_file",
+                    "params": {
+                        "file_name": "$output_filename",
+                        "file_content": "$file_content"
+                    },
+                    "output": [
+                        "success"
+                    ]
+                }
+            ]
+        },
+        "file_copy_b64_workflow": {
+            "type": "workflow",
+            "help": "Read from one file and write to another.",
+            "inputs": [
+                "input_filename",
+                "output_filename"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "success"
+            ],
+            "steps": [
+                {
+                    "agent": "read_file",
+                    "params": {
+                        "file_name": "$input_filename"
+                    },
+                    "output": [
+                        "file_content"
+                    ]
+                },
+                {
+                    "agent": "encode_base64",
+                    "params": {
+                        "data": "$file_content"
+                    },
+                    "output": [
+                        "encoded_data"
+                    ]
+                },
+                {
+                    "agent": "decode_base64",
+                    "params": {
+                        "data": "$encoded_data"
+                    },
+                    "output": [
+                        "decoded_data"
+                    ]
+                },
+                {
+                    "agent": "write_file",
+                    "params": {
+                        "file_name": "$output_filename",
+                        "file_content": "$decoded_data"
+                    },
+                    "output": [
+                        "success"
+                    ]
+                }
+            ]
+        },
+        "read_file": {
+            "type": "proc",
+            "help": "Reads content from a file",
+            "function": "read_file",
+            "function_def": "def read_file(file_name: str,output:list) -> bytes:\n\twith open(file_name, 'rb') as f:\n\t\treturn f.read(), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "file_name"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "file_content"
+            ]
+        },
+        "write_file": {
+            "type": "proc",
+            "help": "Writes content to a file",
+            "function": "write_file",
+            "function_def": "import os\ndef write_file(file_name: str, file_content: bytes, output:list) -> bytes:\n\tbase_name, extension = os.path.splitext(file_name)\n\tpadding = 4\n\tcounter = 0\n\t\n\twhile True:\n\t\tif counter == 0:\n\t\t\tnew_file_name = file_name\n\t\telse:\n\t\t\tnew_file_name = f\"{base_name}_{counter:0{padding}d}{extension}\"\n\t\t\n\t\tif not os.path.exists(new_file_name):\n\t\t\twith open(new_file_name, 'wb') as f:\n\t\t\t\tf.write(file_content)\n\t\t\treturn b\"Successfully wrote data\", {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\n\t\tcounter += 1\n",
+            "inputs": [
+                "file_name",
+                "file_content"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "success"
+            ]
+        },
+        "encode_base64": {
+            "type": "proc",
+            "help": "Encodes data to base64",
+            "function": "encode_base64",
+            "function_def": "def encode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64encode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "data"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "encoded_data"
+            ]
+        },
+        "decode_base64": {
+            "type": "proc",
+            "help": "Decodes base64 data",
+            "function": "decode_base64",
+            "function_def": "def decode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64decode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "data"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "decoded_data"
+            ]
+        },
+        "create_url": {
+            "type": "template",
+            "help": "creates an url given a host with port and endpoint",
+            "prompt": "{host}{endpoint}",
+            "inputs": [
+                "host",
+                "endpoint"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "url"
+            ]
+        },
+        "exec_api_call_get": {
+            "type": "proc",
+            "help": "makes an http api request",
+            "function": "exec_api_call_get",
+            "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\ndef exec_api_call_get(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.get(url, headers=headers_dict,timeout=30)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}\n",
+            "inputs": [
+                "url",
+                "headers",
+                "payload"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "response"
+            ]
+        },
+        "exec_api_call": {
+            "type": "proc",
+            "help": "makes an http api request",
+            "function": "exec_api_call",
+            "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\ndef exec_api_call(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.post(url, headers=headers_dict, data=payload_bytes,timeout=6000)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}\n",
+            "inputs": [
+                "url",
+                "headers",
+                "payload"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "response"
+            ]
+        },
+        "handle_json_response": {
+            "type": "proc",
+            "help": "handles a well formatted json response using a selector",
+            "function": "handle_json_response",
+            "function_def": "def handle_json_response( selector: str, response_text: bytes,output:list) -> bytes:\n\tresponse_json = json.loads(response_text)\n\tresult = response_json[selector]\n\treturn result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+            "inputs": [
+                "selector",
+                "response_text"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ]
+        },
+        "handle_xml_response": {
+            "type": "proc",
+            "help": "handles a well formatted json response using a selector",
+            "function": "handle_json_response",
+            "function_def": "def handle_xml_response( selector: str, response_text: bytes,output:list) -> bytes:\n\troot = ET.fromstring(response_text)\n\tresult = root.find(selector).text\n\treturn result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+            "inputs": [
+                "selector",
+                "response_text"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ]
+        },
+        "handle_html_response": {
+            "type": "proc",
+            "help": "handles a well formatted json response using a selector",
+            "function": "handle_json_response",
+            "function_def": "def handle_html_response( selector: str, response_text: bytes,output:list) -> bytes:\n\tsoup = BeautifulSoup(response_text, 'html.parser')\n\tresult = soup.select_one(selector).text\n\treturn result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+            "inputs": [
+                "selector",
+                "response_text"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ]
+        },
+        "handle_bad_response": {
+            "type": "proc",
+            "help": "will extract the contents out of a bad respose given a selector.\n You give it an input and a selector and it extracts that part out of the incoming message and sends it to the output.\n\n   ",
+            "function": "handle_bad_response",
+            "function_def": "def handle_bad_response( selector: str, response_text: bytes,output:list) -> bytes:\n\tparts = selector.split('.')\n\tstart_tag\t\t= parts[0]\n\tstart_idx_offset = int(parts[1])\n\tend_tag\t\t  = parts[2]\n\tend_idx_offset   = int(parts[3])\n\tstart_idx = response_text.find(start_tag) + len(start_tag)\n\tend_idx = response_text.find(end_tag)\n\tresult = response_text[start_idx+start_idx_offset:end_idx+end_idx_offset]\n\treturn result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t",
+            "inputs": [
+                "selector",
+                "response_text"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ]
+        },
+        "extract_json_trim": {
+            "type": "proc",
+            "help": "will extract json from an ai responses gets everything between the first { and last } inclusive.\n   ",
+            "function": "extract_json_trim",
+            "function_def": "",
+            "inputs": [
+                "data",
+                "trim"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "json"
+            ]
+        },
+        "extract_json": {
+            "type": "proc",
+            "help": "will extract json from an ai responses gets everything between the first { and last } inclusive.\n   ",
+            "function": "extract_json",
+            "function_def": "def extract_json(data: bytes, output: list) -> bytes:\n\t# Find the first occurrence of '{'\n\tstart_index = None\n\tfor i, char in enumerate(data):\n\t\tif char == '{':\n\t\t\tstart_index = i\n\t\t\tbreak\n\n\tif start_index is None:\n\t\treturn data, {\"status\": {\"value\": 1, \"reason\": \"Failed to find start tag\"}}\n\n\t# Find the last occurrence of '}'\n\tend_index = None\n\tfor i in range(len(data) - 1, start_index, -1):\n\t\tif data[i] == '}':\n\t\t\tend_index = i\n\t\t\tbreak\n\n\tif end_index is None:\n\t\treturn data, {\"status\": {\"value\": 1, \"reason\": \"Failed to find end tag\"}}\n\n\treturn {output[0]: data[start_index:end_index + 1]}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "data"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "json"
+            ]
+        },
+        "create_ollama_payload": {
+            "type": "template",
+            "help": "Create the string to send a json request to an ollama api",
+            "prompt": "{\"model\": \"{model}\", \"prompt\": \"{prompt}\", \"stream\": false, \"options\": {\"num_thread\": 8, \"num_ctx\": 4048}}",
+            "inputs": [
+                "prompt",
+                "model"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "text_prompt"
+            ]
+        },
+        "create_long_ollama_payload": {
+            "type": "template",
+            "help": "Create the string to send a json request to an ollama api",
+            "prompt": "{\"model\": \"{model}\", \"prompt\": \"{prompt}\", \"stream\": false, \"options\": {\"num_predict\": 8000, \"num_thread\": 4, \"num_ctx\": 32000}}",
+            "inputs": [
+                "prompt",
+                "model"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "text_prompt"
+            ]
+        },
+
+        "groq_text_completion": {
+            "type": "proc",
+            "help": "Send a prompt to groq and get back a text completion.",
+            "function": "groq_text_completion",
+            "function_def": "",
+            "inputs": [ "groq_request", "groq_model", "groq_api_key" ],
+            "optional_inputs": [ "max_tokens", "temperature", "top_p", "n", "stop", "rate_limit"],
+            "outputs": [ "response" ]
+        },
+        "get_groq_response": {
+            "type": "workflow",
+            "help": "Given a prompt, get the ollama response.",
+            "inputs": [
+                "prompt"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "response"
+            ],
+            "return_on_fail": 1,
+            "steps": [
+                {
+                    "agent": "groq_text_completion",
+                    "params": {
+                        "groq_request": "$prompt",
+                        "groq_model": "Llama-3.1-8b-Instant",
+                        "groq_api_key": "ENV_groq_api_key"
+                    },
+                    "output": [
+                        "response"
+                    ]
+                }
+            ]
+        },
+        "hugging_text_completion": {
+            "type": "proc",
+            "help": "will extract json from an ai responses gets everything between the first { and last } inclusive.\n   ",
+            "function": "hugging_text_completion",
+            "function_def": "",
+            "inputs": [
+                "hugging_request",
+                "hugging_model",
+                "hugging_user_name",
+                "hugging_password"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "response"
+            ]
+        },
+        "get_hugging_response": {
+            "type": "workflow",
+            "help": "Given a prompt, get the ollama response.",
+            "inputs": [
+                "prompt"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "response"
+            ],
+            "return_on_fail": 1,
+            "steps": [
+                {
+                    "agent": "hugging_text_completion",
+                    "params": {
+                        "hugging_request": "$prompt",
+                        "hugging_model": 1,
+                        "hugging_user_name": "ENV_huggingchat_email",
+                        "hugging_password": "ENV_huggingchat_password"
+                    },
+                    "output": [
+                        "response"
+                    ]
+                }
+            ]
+        },
+        "get_long_ollama_response": {
+            "type": "workflow",
+            "help": "Given a prompt, get the ollama response.",
+            "inputs": [
+                "prompt"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ],
+            "return_on_fail": 1,
+            "steps": [
+                {
+                    "agent": "create_long_ollama_payload",
+                    "params": {
+                        "prompt": "$prompt",
+                        "model": "dagbs/darkidol-llama-3.1-8b-instruct-1.0-uncensored"
+                    },
+                    "output": [
+                        "payload"
+                    ]
+                },
+                {
+                    "agent": "create_url",
+                    "params": {
+                        "host": "http://192.168.1.57:11434",
+                        "endpoint": "/api/generate"
+                    },
+                    "output": [
+                        "url"
+                    ]
+                },
+                {
+                    "agent": "exec_api_call",
+                    "params": {
+                        "url": "$url",
+                        "headers": "{\"Content-Type\": \"application/json\"}",
+                        "payload": "$payload"
+                    },
+                    "output": [
+                        "response"
+                    ]
+                },
+                {
+                    "agent": "handle_json_response",
+                    "params": {
+                        "selector": "response",
+                        "response_text": "$response"
+                    },
+                    "output": [
+                        "data"
+                    ]
+                }
+            ]
+        },
+        "get_ollama_response": {
+            "type": "workflow",
+            "help": "Given a prompt, get the ollama response.",
+            "inputs": [
+                "prompt"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ],
+            "steps": [
+                {
+                    "agent": "create_ollama_payload",
+                    "params": {
+                        "prompt": "$prompt",
+                        "model": "nsheth/llama-3-lumimaid-8b-v0.1-iq-imatrix:latest"
+                    },
+                    "output": [
+                        "payload"
+                    ]
+                },
+                {
+                    "agent": "create_url",
+                    "params": {
+                        "host": "http://192.168.1.179:11434",
+                        "endpoint": "/api/generate"
+                    },
+                    "output": [
+                        "url"
+                    ]
+                },
+                {
+                    "agent": "exec_api_call",
+                    "params": {
+                        "url": "$url",
+                        "headers": "{\"Content-Type\": \"application/json\"}",
+                        "payload": "$payload"
+                    },
+                    "output": [
+                        "response"
+                    ]
+                },
+                {
+                    "agent": "handle_json_response",
+                    "params": {
+                        "selector": "response",
+                        "response_text": "$response"
+                    },
+                    "output": [
+                        "data"
+                    ]
+                }
+            ]
+        },
+        "create_sd_payload": {
+            "type": "template",
+            "help": "Create the string to send a json request to an ollama api",
+            "prompt": "{\"prompt\": \"{prompt}\", \"{negative_prompt}\": \"{negative_prompt}\", \"sampler_name\": \"{sampler_name}\", \"steps\": {steps}, \"cfg_scale\": {cfg_scale}, \"height\": {height}, \"width\": {width},\"seed\": {seed}}",
+            "inputs": [
+                "prompt",
+                "negative_prompt",
+                "sampler_name",
+                "steps",
+                "cfg_scale",
+                "height",
+                "width",
+                "seed"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "encoded_image"
+            ]
+        },
+        "get_sd_response": {
+            "type": "workflow",
+            "help": "Given a prompt and a  netative prompt, go get a base64 image from a stable diffusion endpoint. ",
+            "inputs": [
+                "prompt",
+                "negative_prompt"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ],
+            "steps": [
+                {
+                    "agent": "create_sd_payload",
+                    "params": {
+                        "prompt": "$prompt",
+                        "negative_prompt": "$negative_prompt",
+                        "sampler_name": "Euler",
+                        "steps": "30",
+                        "cfg_scale": "6",
+                        "height": "512",
+                        "width": "512",
+                        "seed": "-1"
+                    },
+                    "output": [
+                        "payload"
+                    ]
+                },
+                {
+                    "agent": "create_url",
+                    "params": {
+                        "host": "http://192.168.1.57:7860",
+                        "endpoint": "/sdapi/v1/template"
+                    },
+                    "output": [
+                        "url"
+                    ]
+                },
+                {
+                    "agent": "exec_api_call",
+                    "params": {
+                        "url": "$url",
+                        "headers": "{\"Content-Type\": \"application/json\"}",
+                        "payload": "$payload"
+                    },
+                    "output": [
+                        "response"
+                    ]
+                },
+                {
+                    "agent": "handle_bad_response",
+                    "params": {
+                        "selector": "images.4.].-1",
+                        "response_text": "$response"
+                    },
+                    "output": [
+                        "data"
+                    ]
+                }
+            ]
+        },
+        "template2dsk": {
+            "type": "workflow",
+            "help": "Generate a prompt and create an image.",
+            "inputs": [
+                "prompt",
+                "negative_prompt",
+                "filename"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "image"
+            ],
+            "prompt": "{prompt}",
+            "steps": [
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$prompt"
+                    },
+                    "output": [
+                        "image_prompts"
+                    ]
+                },
+                {
+                    "agent": "get_sd_response",
+                    "params": {
+                        "prompt": "$image_prompts",
+                        "negative_prompt ": "$negative_prompt"
+                    },
+                    "output": [
+                        "image"
+                    ]
+                },
+                {
+                    "agent": "decode_base64",
+                    "params": {
+                        "data": "$image"
+                    },
+                    "output": [
+                        "decoded_data"
+                    ]
+                },
+                {
+                    "agent": "write_file",
+                    "params": {
+                        "file_name": "$filename",
+                        "file_content": "$decoded_data"
+                    },
+                    "output": [
+                        "success"
+                    ]
+                }
+            ]
+        },
+        "image_agent_wf": {
+            "type": "workflow",
+            "help": "Generate a prompt and create an image.",
+            "inputs": [
+                "topic",
+                "negative_prompt",
+                "filename"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "success"
+            ],
+            "prompt": "{prompt}",
+            "steps": [
+                {
+                    "agent": "image_prompt_generator",
+                    "params": {
+                        "topic": "$topic"
+                    },
+                    "output": [
+                        "image_prompt"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$image_prompt"
+                    },
+                    "output": [
+                        "image_prompts"
+                    ]
+                },
+                {
+                    "agent": "get_sd_response",
+                    "params": {
+                        "prompt": "$image_prompts",
+                        "negative_prompt ": "$negative_prompt"
+                    },
+                    "output": [
+                        "image"
+                    ]
+                },
+                {
+                    "agent": "decode_base64",
+                    "params": {
+                        "data": "$image"
+                    },
+                    "output": [
+                        "decoded_data"
+                    ]
+                },
+                {
+                    "agent": "write_file",
+                    "params": {
+                        "file_name": "$filename",
+                        "file_content": "$decoded_data"
+                    },
+                    "output": [
+                        "success"
+                    ]
+                }
+            ]
+        },
+        "image_prompt_generator": {
+            "type": "template",
+            "help": "create a stable diffusion prompt",
+            "inputs": [
+                "topic"
+            ],
+            "outputs": [
+                "image_prompts"
+            ],
+            "optional_inputs": [],
+            "prompt": "As a stable diffusion master prompt writer, I create a long highly detailed and nuanced prompt to elicit the perfect artwork from stable diffusion models. I follow the following creative points, A specific and detailed description of what you want to create, include interesting or unusual elements, provide context about the scene, characters, and setting, include emotions and atmosphere in the prompt, include contrasting elements in the prompt, including a story or narrative in the prompt, provide technical details about the image, such as size, color palette, and style, give the model creative freedom by leaving out some details or allowing it to make choices, using consistent language throughout the prompt. The prompt should be highly detailed and nuanced, with specific requests for detailed setting descriptions, detailed character descriptions, detailed background, and other aspects of the image should almost tell a story. Create a photograph featuring {topic}. "
+        },
+        "create_comfy_payload": {
+            "type": "template",
+            "help": "Create the string to send a json request to an ollama api",
+            "prompt": "",
+            "inputs": [
+                "prompt",
+                "negative_prompt",
+                "sampler_name",
+                "steps",
+                "cfg_scale",
+                "height",
+                "width",
+                "seed"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "encoded_image"
+            ]
+        },
+        "get_comfy_response": {
+            "type": "workflow",
+            "help": "Given a prompt and a  netative prompt, go get a base64 image from a stable diffusion endpoint. ",
+            "inputs": [
+                "prompt",
+                "negative_prompt"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "data"
+            ],
+            "steps": [
+                {
+                    "agent": "create_cui_payload",
+                    "params": {
+                        "prompt": "$prompt",
+                        "negative_prompt": "$negative_prompt",
+                        "sampler_name": "Euler",
+                        "steps": "30",
+                        "cfg_scale": "6",
+                        "height": "512",
+                        "width": "512",
+                        "seed": "-1"
+                    },
+                    "output": [
+                        "payload"
+                    ]
+                },
+                {
+                    "agent": "create_url",
+                    "params": {
+                        "host": "http://192.168.1.57:7860",
+                        "endpoint": "/sdapi/v1/template"
+                    },
+                    "output": [
+                        "url"
+                    ]
+                },
+                {
+                    "agent": "exec_api_call",
+                    "params": {
+                        "url": "$url",
+                        "headers": "{\"Content-Type\": \"application/json\"}",
+                        "payload": "$payload"
+                    },
+                    "output": [
+                        "response"
+                    ]
+                },
+                {
+                    "agent": "handle_bad_response",
+                    "params": {
+                        "selector": "images.4.].-1",
+                        "response_text": "$response"
+                    },
+                    "output": [
+                        "data"
+                    ]
+                }
+            ]
+        },
+        "research_agent": {
+            "type": "template",
+            "help": "Conducts research on a given topic at the specified depth.",
+            "inputs": [
+                "topic",
+                "depth",
+                "thesis"
+            ],
+            "outputs": [
+                "research"
+            ],
+            "optional_inputs": [],
+            "prompt": "You are a research expert.  Provide {depth} research on the topic: {topic} to support a thesis: {thesis}. Incorporate specific examples, studies, and data to support the arguments. Mention current efforts, frameworks, or regulations related to AI governance. Reduce repetition of phrases to improve readability. Provide a more detailed discussion on proposed solutions or strategies to address the identified concerns. provide detailed and thorough research on a specific topic, incorporating examples, studies, and data to support arguments. Focus on facts and figures and cite sources appropriately. Organize research into sections that reflect how they will be used in drafting an article.  Inputs: - topic: The specific area of study or focus for the research. - {depth}: The level of detail required, from superficial to in-depth analysis. - tone: The desired tone or style of the research, such as academic, technical, or persuasive. Integration: The research expert agent should be designed to seamlessly integrate with other agents in the workflow, such as a drafting agent or a design agent. This includes providing replaceable keywords for dynamic updates based on user inputs and following formatting guidelines that enable smooth data exchange."
+        },
+        "draft_agent": {
+            "type": "template",
+            "help": "Conducts research on a given topic at the specified depth.",
+            "inputs": [
+                "topic",
+                "thesis",
+                "tone",
+                "research"
+            ],
+            "outputs": [
+                "draft_essay"
+            ],
+            "optional_inputs": [],
+            "prompt": "You are a draft writing expert. Create a first draft of an essay on the topic: {topic}. Ensure it has a clear introduction, body, and conclusion, with each paragraph focusing on a specific idea. Use a {tone} that supports your given {thesis}, while also acknowledging opposing viewpoints. Draw from the provided research to strengthen your arguments, ensuring you provide a diverse range of examples, studies, and data. Use the provided citations to strengthen your reasoning. Addressing both sides of issues is crucial for strong writing. Use proper citation techniques throughout the essay. It uses replaceable keywords such as {keywords} that allow dynamic updates based on user inputs. For example, in a scenario where the writer needs to update an existing essay or paper, they can simply replace the relevant keywords with new ones to generate a revised draft. This is the reseach you are going to use: {research}"
+        },
+        "fact_check_agent": {
+            "type": "template",
+            "help": "fact checks draft essays.",
+            "inputs": [
+                "topic",
+                "thesis",
+                "draft"
+            ],
+            "outputs": [
+                "fact_checked_paper"
+            ],
+            "optional_inputs": [],
+            "prompt": "You are an expert at fact checking draft documents of the topic: {topic}. You are careful to rewrite the paper so that it is factually, without leaving your extraneous remarks in the paper. Your role as the fact-checking agent is to ensure the accuracy and reliability of any given topic presented in a thesis or draft document. You will identify any discrepancies, errors, or misinformation and correct them while still preserving the original meaning and intent of the author's work. This requires  citing reliable sources, and suggesting alternative arguments or evidence that could strengthen the author's thesis. Use the following draft to support the thesis: {thesis}, correcting any mistakes you find, {draft}"
+        },
+        "finished_essay_agent": {
+            "type": "template",
+            "help": "Final step for an essay to generate a high quality product.",
+            "inputs": [
+                "topic",
+                "thesis",
+                "essay",
+                "tone"
+            ],
+            "outputs": [
+                "fact_checked_paper"
+            ],
+            "optional_inputs": [],
+            "prompt": "You are an expert at writing polished essays.  Provide {tone} research on the topic: {topic}. As the polish_agent, my role is to take a well-written and researched essay as input and refine it to ensure accuracy, clarity, and coherence. My inputs are the final draft of the essay, any necessary research, and instructions on tone and depth. I will also review any and studies from the provided research to further support the arguments in the essay.  Overall, as the polish_agent, my goal is to refine the final draft into a polished and well-cited essay that accurately and persuasively presents the arguments and supports the thesis statement. I will also ensure that any issues in grammar, punctuation, or syntax are corrected for clarity and coherence. Use the following final draft of a fact checked paper to write the paper, removing any fact checking statements and incorporating them into the paper to support the thesis: {thesis}, correcting any mistakes you find, {essay}"
+        },
+        "essay_generation": {
+            "type": "workflow",
+            "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+            "inputs": [
+                "topic",
+                "depth",
+                "thesis",
+                "tone"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "final_essay"
+            ],
+            "prompt": "{prompt}",
+            "steps": [
+                {
+                    "agent": "research_agent",
+                    "params": {
+                        "topic": "$topic",
+                        "depth": "$depth",
+                        "thesis": "$thesis"
+                    },
+                    "output": [
+                        "research_agent_out"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$research_agent_out"
+                    },
+                    "output": [
+                        "ollama_research"
+                    ]
+                },
+                {
+                    "agent": "draft_agent",
+                    "params": {
+                        "topic": "$topic",
+                        "thesis": "$thesis",
+                        "tone": "$tone",
+                        "research": "$ollama_research"
+                    },
+                    "output": [
+                        "draft_agent_out"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$draft_agent_out"
+                    },
+                    "output": [
+                        "ollama_draft"
+                    ]
+                },
+                {
+                    "agent": "fact_check_agent",
+                    "params": {
+                        "topic": "$topic",
+                        "thesis": "$thesis",
+                        "draft": "$ollama_draft"
+                    },
+                    "output": [
+                        "fact_checked_out"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$fact_checked_out"
+                    },
+                    "output": [
+                        "ollama_fact_check"
+                    ]
+                },
+                {
+                    "agent": "finished_essay_agent",
+                    "params": {
+                        "topic": "$topic",
+                        "thesis": "$thesis",
+                        "essay": "$ollama_fact_check",
+                        "tone": "$tone"
+                    },
+                    "output": [
+                        "finished_essay_agent_out"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$finished_essay_agent_out"
+                    },
+                    "output": [
+                        "final_essay"
+                    ]
+                }
+            ]
+        },
+        "loop_start": {
+            "type": "proc",
+            "help": "Sets a marker to start loop1",
+            "function": "loop_start",
+            "function_def": "def loop_start(step_index: int, loop_max: int, output:list) -> dict:\n\treturn { output[0]: step_index,\toutput[1]: int(loop_max), output[2]: 0 }, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "step_index",
+                "loop_max"
+            ],
+            "outputs": [
+                "loop_start_1",
+                "loop_max_1",
+                "loop_idx_1"
+            ],
+            "optional_inputs": []
+        },
+        "loop_end": {
+            "type": "proc",
+            "help": "Sets a marker to start loop1",
+            "function": "loop_end",
+            "function_def": "def loop_end(step_index: int, loop_max: int, loop_index: int, output:list) -> any:\n\tnew_counter = loop_index + 1\n\tif new_counter < loop_max:\n\t\treturn {'step_index': step_index, output[0]: new_counter}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\treturn new_counter, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "step_index",
+                "loop_max",
+                "loop_index"
+            ],
+            "outputs": [
+                "loop_idx_1"
+            ],
+            "optional_inputs": []
+        },
+        "loop_test": {
+            "type": "workflow",
+            "help": "Test for looping.",
+            "inputs": [
+                "loop_max"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "loop_idx_1"
+            ],
+            "steps": [
+                {
+                    "agent": "loop_start",
+                    "params": {
+                        "step_index": "$step_index",
+                        "loop_max": "$loop_max"
+                    },
+                    "output": [
+                        "loop_start_1",
+                        "loop_max_1",
+                        "loop_idx_1"
+                    ]
+                },
+                {
+                    "agent": "loop_end",
+                    "params": {
+                        "step_index": "$loop_start_1",
+                        "loop_max": "$loop_max_1",
+                        "loop_index": "$loop_idx_1"
+                    },
+                    "output": [
+                        "loop_idx_1"
+                    ]
+                }
+            ]
+        },
+        "filename_idx": {
+            "type": "template",
+            "help": "echo input to output",
+            "prompt": "a/image_for_loop_test_{loop_idx_1}.png",
+            "inputs": [
+                "input"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "output"
+            ]
+        },
+        "loop_images": {
+            "type": "workflow",
+            "help": "Test for looping.",
+            "inputs": [
+                "loop_max"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "loop_idx_1"
+            ],
+            "steps": [
+                {
+                    "agent": "loop_start",
+                    "params": {
+                        "step_index": "$step_index",
+                        "loop_max": "$loop_max"
+                    },
+                    "output": [
+                        "loop_start_1",
+                        "loop_max_1",
+                        "loop_idx_1"
+                    ]
+                },
+                {
+                    "agent": "filename_idx",
+                    "params": {
+                        "input": "$loop_idx_1"
+                    },
+                    "output": [
+                        "filname_idx_png"
+                    ]
+                },
+                {
+                    "agent": "image_agent_wf",
+                    "params": {
+                        "topic": "an eagle soaring over a fantasy valley with a fairy tale castle on a hill at sunset, realistic, illustration",
+                        "negative_prompt": "ugly, cartoon, anime,",
+                        "filename": "$filname_idx_png"
+                    },
+                    "output": [
+                        "image"
+                    ]
+                },
+                {
+                    "agent": "loop_end",
+                    "params": {
+                        "step_index": "$loop_start_1",
+                        "loop_max": "$loop_max_1",
+                        "loop_index": "$loop_idx_1"
+                    },
+                    "output": [
+                        "loop_idx_1"
+                    ]
+                }
+            ]
+        },
+        "scatter_on_separator": {
+            "type": "proc",
+            "help": "splits a whole into parts by separator",
+            "function": "scatter_on_separator",
+            "function_def": "def scatter_on_separator(content: bytes, split_char: bytes,output:list) -> dict:\n\tideas_list = content.decode('utf-8',errors='replace').split(split_char)\n\tlist_len = len(ideas_list)\n\t#if last line is blank, separator is an end marker\n\tif ideas_list[list_len-1] =='': list_len -= 1 \n\tideas_dict = {output[0]: ideas_list, output[1]: list_len}\n\treturn ideas_dict, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "content",
+                "split_char"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "split_contents",
+                "split_len"
+            ]
+        },
+        "emit_part_by_index": {
+            "type": "proc",
+            "help": "emit a part by index",
+            "function": "emit_part_by_index",
+            "function_def": "def emit_part_by_index(parts: list, index: int,output:list) -> str:\n\t\tif index >= len(parts):\n\t\t\traise IndexError(\"Index out of range\")\n\t\treturn {output[0]: parts[index]}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "parts",
+                "index"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "part"
+            ]
+        },
+        "emit_part_by_index_offset": {
+            "type": "proc",
+            "help": "emit a part by index",
+            "function": "emit_part_by_index_offset",
+            "function_def": "def emit_part_by_index_offset(parts: list, index: int,output:list) -> str:\n\t\tif index >= len(parts):\n\t\t\traise IndexError(\"Index out of range\")\n\t\treturn {output[0]: parts[index]}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+            "inputs": [
+                "parts",
+                "index",
+                "offset",
+                "out_of_range_part"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "part"
+            ]
+        },
+        "loop_image_topics_from_file": {
+            "type": "workflow",
+            "help": "Test for looping.",
+            "inputs": [
+                "topic_filename"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "loop_idx_1"
+            ],
+            "steps": [
+                {
+                    "agent": "read_file",
+                    "params": {
+                        "file_name": "$topic_filename"
+                    },
+                    "output": [
+                        "file_contents"
+                    ]
+                },
+                {
+                    "agent": "scatter_on_separator",
+                    "params": {
+                        "content": "$file_contents",
+                        "split_char": "\n"
+                    },
+                    "output": [
+                        "split_contents",
+                        "split_len"
+                    ]
+                },
+                {
+                    "agent": "loop_start",
+                    "params": {
+                        "step_index": "$step_index",
+                        "loop_max": "$split_len"
+                    },
+                    "output": [
+                        "loop_start_1",
+                        "loop_max_1",
+                        "loop_idx_1"
+                    ]
+                },
+                {
+                    "agent": "emit_part_by_index",
+                    "params": {
+                        "parts": "$split_contents",
+                        "index": "$loop_idx_1"
+                    },
+                    "output": [
+                        "scatter_part"
+                    ]
+                },
+                {
+                    "agent": "filename_idx",
+                    "params": {
+                        "input": "$loop_idx_1"
+                    },
+                    "output": [
+                        "filname_idx_png"
+                    ]
+                },
+                {
+                    "agent": "image_agent_wf",
+                    "params": {
+                        "topic": "$scatter_part",
+                        "negative_prompt": "ugly, cartoon, anime,",
+                        "filename": "$filname_idx_png"
+                    },
+                    "output": [
+                        "image"
+                    ]
+                },
+                {
+                    "agent": "loop_end",
+                    "params": {
+                        "step_index": "$loop_start_1",
+                        "loop_max": "$loop_max_1",
+                        "loop_index": "$loop_idx_1"
+                    },
+                    "output": [
+                        "loop_idx_1"
+                    ]
+                }
+            ]
+        },
+        "thesis_alignment": {
+            "type": "txt2txt",
+            "inputs": [
+                "thesis",
+                "input_text"
+            ],
+            "outputs": [
+                "research"
+            ],
+            "prompt": "Review the following essay and ensure all paragraphs support and align with the thesis '{thesis}'. Suggest modifications where necessary: {input_text}",
+            "help": "Aligns docuemnt to a specific thesis."
+        },
+        "vocabulary_agent": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text",
+                "tone"
+            ],
+            "outputs": [
+                "enhanced_vocabulary"
+            ],
+            "prompt": "Enhance the vocabulary in the following essay to better match a {tone} tone, without changing the meaning: {input_text}",
+            "defaults": {
+                "tone": ""
+            },
+            "help": "Enhances vocabulary in an essay based on a specified tone."
+        },
+        "transition_agent": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text"
+            ],
+            "outputs": [
+                "improved_transitions"
+            ],
+            "prompt": "Identify and improve transitions between paragraphs in the following essay to enhance flow and coherence: {input_text}",
+            "defaults": {},
+            "help": "Improves paragraph transitions in an essay."
+        },
+        "conclusion_agent": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text",
+                "thesis"
+            ],
+            "outputs": [
+                "strengthened_conclusion"
+            ],
+            "prompt": "Analyze the conclusion of the following essay. Strengthen it to reinforce the thesis '{thesis}' and provide a compelling final thought: {input_text}",
+            "defaults": {
+                "thesis": ""
+            },
+            "help": "Strengthens the conclusion of an essay to reinforce the thesis."
+        },
+        "style_consistency_agent": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text",
+                "style_guide"
+            ],
+            "outputs": [
+                "corrected_style"
+            ],
+            "prompt": "Review the following essay and ensure it adheres to the {style_guide} style guide. Suggest corrections where necessary: {input_text}",
+            "defaults": {
+                "style_guide": ""
+            },
+            "help": "Ensures an essay adheres to a specific style guide."
+        },
+        "counterargument_agent": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text",
+                "topic",
+                "thesis"
+            ],
+            "outputs": [
+                "potential_counterarguments"
+            ],
+            "prompt": "Analyze the following essay on '{topic}' with the thesis '{thesis}'. Identify potential counterarguments and suggest how to address them in the essay: {input_text}",
+            "defaults": {
+                "topic": "",
+                "thesis": ""
+            },
+            "help": "Identifies potential counterarguments in an essay and suggests how to address them."
+        },
+        "citation_agent": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text"
+            ],
+            "outputs": [
+                "suggested_citations"
+            ],
+            "prompt": "Identify statements in the following essay that require citations. Suggest potential sources for these citations: {input_text}",
+            "defaults": {},
+            "help": "Identifies statements in an essay that require citations and suggests potential sources."
+        },
+        "outline_agent": {
+            "type": "txt2txt",
+            "inputs": [
+                "topic",
+                "thesis"
+            ],
+            "outputs": [
+                "essay_outline"
+            ],
+            "prompt": "Create a detailed outline for an essay on the topic '{topic}' with the thesis '{thesis}'. Include main points and subpoints.",
+            "defaults": {
+                "topic": "",
+                "thesis": ""
+            },
+            "help": "Generates a detailed essay outline based on a given topic and thesis."
+        },
+        "idiomatic_remover": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text"
+            ],
+            "outputs": [
+                "simplified_text"
+            ],
+            "prompt": "You are an expert in language processing. Rewrite the following text to remove idiomatic expressions and make it clear and straightforward: {input_text}",
+            "defaults": {},
+            "help": "Removes idiomatic expressions from text to make it more clear and straightforward."
+        },
+        "language_translator": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text",
+                "target_language"
+            ],
+            "outputs": [
+                "translated_text"
+            ],
+            "prompt": "You are an expert translator. Translate the following text into {target_language} while ensuring it remains clear and straightforward: {input_text}",
+            "defaults": {
+                "target_language": ""
+            },
+            "help": "Translates text into a specified target language while maintaining clarity."
+        },
+        "language_adder": {
+            "type": "txt2txt",
+            "inputs": [
+                "input_text",
+                "target_language"
+            ],
+            "outputs": [
+                "enhanced_text"
+            ],
+            "prompt": "You are an expert in language processing. Rewrite the following text to include idiomatic expressions common in {target_language} while maintaining the original meaning: {input_text}",
+            "defaults": {
+                "target_language": ""
+            },
+            "help": "Enhances text by adding idiomatic expressions common in a specified target language."
+        },
+        "template_agent": {
+            "type": "template",
+            "inputs": [
+                "prompt",
+                "steps",
+                "sampler_name"
+            ],
+            "outputs": [
+                "image"
+            ],
+            "prompt": "{prompt}\", \"steps\": \"{steps}\", \"sampler_name\": \"{sampler_name}\"",
+            "help": "Generates an image based on a text prompt using Stable Diffusion."
+        },
+        "story_chapter_writer_prompt": {
+            "type": "template",
+            "inputs": [
+                "genre",
+                "topic",
+                "characters",
+                "previous_chapter_summary",
+                "current_chapter_summary"
+            ],
+            "outputs": [
+                "image"
+            ],
+            "prompt": "**Agent Name:** Story Chapter Writer\n\n**Role:** Research, Draft, Brainstorm. I am just one agent in a chain of agents with a single task. I have to write a single chapter for a story. I have been given the summmary for that chapter and it is my job to write the chapter with the characters provided. To expand the chapter summaries into more detailed scenes, I follow a structured approach that includes the following steps:\n\nInstructions for Expanding Summaries:\nIdentify Key Points:\n\nExtract the main events and conflicts from the chapter summary.\nDetermine the central actions, character interactions, and turning points.\nDevelop Scenes:\n\nBreak down the key points into distinct scenes that build the narrative.\nEnsure each scene has a clear beginning, middle, and end.\nSet the Stage:\n\nDescribe the setting in detail to immerse the reader in the environment.\nUse sensory details (sight, sound, touch, etc.) to enhance the scene.\nIntroduce and Develop Characters:\n\nHighlight character actions, dialogue, and internal thoughts.\nShow character motivations and conflicts to deepen their development.\nBuild Conflict and Tension:\n\nIntroduce obstacles and challenges the characters must face.\nCreate tension through conflicts, both external (e.g., robot attacks) and internal (e.g., Piper's dilemma).\nEnsure Continuity and Flow:\n\nTransition smoothly between scenes and maintain a logical flow.\nUse pacing to balance action, dialogue, and descriptive passages.\nHighlight Key Moments:\n\nFocus on pivotal moments that drive the plot forward.\nEmphasize decisions, revelations, and turning points.\nConclude with Purpose:\n\nEnd each chapter or scene with a resolution or a cliffhanger.\nSet up the next chapter or scene to maintain reader interest. It is essential that I write this one chapter. If I fail to write this chapter then I let down a whole team of agents. \n\n**Inputs:**\n\n* Genre:\n* Topic:\n* Characters:\n* Previous chapter summary:\n* Current chapter summary:\n\n**Output Requirements:**\n\nThe output should be a well-written, engaging chapter in the specified genre. The chapter should include dialogue between characters and detailed descriptions of settings.\n\n**Incorporate Examples:** Provide sample tasks or scenarios, such as writing a great story chapter for a western book or science fiction book.\n\n**Agent instructions**:  write a great story chapter for the genre: Genre: {genre} using the topic: {topic} incorporating the following characters: {characters}  \n\nThe previous chapter summary is provided for context: {previous_chapter_summary}\n\nThe current chapter that you are writing now is based on the following summary: {current_chapter_summary}\n\nFeel free to expand the details and action mentioned in the summary, but try to steer the story in the direction the outline is asking you to go. Do not offer any explanations, keypoints, or summaries. You don't need the complete story to write this one chapter in the story, your role is to just write this one chapter. If you fail to write this chapter then the next agent cannot do their job, and the workflow will fail.",
+            "help": "Generates a chapter of a story based on genre, topic, preve and current chapter outline and characters."
+        },
+        "story_characters_prompt": {
+            "type": "template",
+            "inputs": [
+                "genre",
+                "topic"
+            ],
+            "outputs": [
+                "story_characters_template"
+            ],
+            "prompt": "Agent's Role: Story Characters Prompt\nThe purpose of this agent is to generate unique and diverse story characters based on user input.\nInputs:\nGenre: The style and setting of the story\nTopic: The theme or subject matter of the story\nOutput Requirements: A list of characters with their names, who they support (e.g., protagonist, antagonist, etc.), and a brief description of their appearance and personality. These characters should match the genre but some of them should subvert expectations for that character.\n\nIncorporating Examples: Here are some examples of how the agent could be used:\n\nSolarpunk Futurism: A genre that envisions a future powered by renewable energy, where technology and nature coexist harmoniously.\nProtagonist: Helio Solara (an eco-engineer who develops innovative solar technology)\nAntagonist: Argus Aspern (a corporate executive who seeks to monopolize the renewable energy market)\nSupporting Character: Linna Kembara (an environmental activist who campaigns for sustainable development)\nMinor Character: Brin Ellis (a young scientist who specializes in plant-based biofuels)\n\nDiesel Deco Noir: A genre that blends the aesthetics of Dieselpunk (retro-futuristic, powered by diesel and steam) with Art Deco design elements, set in a dark and gritty urban environment.\nProtagonist: Scarlett Hardaway (a hard-boiled detective who solves crimes in a corrupt city)\nAntagonist: Malachi Stratham (a cunning mobster who controls the city's criminal underworld)\nSupporting Character: Adler Cinder (a skilled engineer who builds diesel-powered automatons)\nMinor Character: Xandra Frost (a sultry lounge singer who moonlights as an informant)\n\nThese examples are just for guidance and should not be used in your output. Generate brand new characters every time, with unique combinations of first and last names, clothing choices, and characteristics. It is essential to be fresh and new and never reuse names or characters you have seen in the past. Use the examples as archetypes to guide your creativity.\n\nCreate story characters as described above based on genre: {genre} and topic: {topic}, ensuring that character names are unique and not used in previous outputs or examples provided.\n\n",
+            "help": "Generates a list of characters to use for a story."
+        },
+        "story_outliner_prompt": {
+            "type": "template",
+            "inputs": [
+                "genre",
+                "topic",
+                "characters",
+                "chapter_count"
+            ],
+            "outputs": [
+                "json_story_outline_template"
+            ],
+            "prompt": "Agent Name: Story Outline Generator\n\nPurpose:\nGenerate outlines for fictional stories, breaking down a given story into a specified number of chapters. Each chapter is outlined for further development.\n\nInputs:\n\ngenre: The genre of the story (e.g., action-adventure, sci-fi, fantasy)\ntopic: The topic of the story\ncharacters: A list of characters to include in the outline\nchapter_count: The number of chapters to create an outline for. This is a strict requirement.\n\nOutputs:\n\noutline.json: A JSON file containing a list of chapter summaries.\n\nProcedure:\n\nResearch: Gather information on the topic and genre, including setting, characters, and plot.\nBrainstorming: Generate ideas for the story outline, exploring unique themes.\nOutline Creation: Create an outline for each chapter, focusing on main events and key plot points.\nIncorporate Tropes: Use standard tropes but subvert expectations for a unique outcome.\nConflict and Resolution: Allow the hero to face setbacks, with the final triumph over challenges.\nInclude Side Quests: Integrate side quests related to the main theme to enrich the plot.\nCharacter Flexibility: Modify suggested characters as needed to enhance the story.\nAdditional Elements to Consider:\n\nSetting: Describe the world, locations, time period, and cultural context.\nCharacter Development: Focus on characters' growth, motivations, and relationships.\nConflict: Include a central conflict that drives the story forward.\nKey Plot Points: Identify major events shaping the story’s progression.\nPacing: Balance action, exposition, and reflection for a well-paced story.\nResolution: Create a satisfying ending that addresses the central conflict.\n Chapter plot points: each chapter summary should include a few plot points to guide the chapter writer in how to construct the chapter.\n Foreshadowing: Forshadow events in the next chapter and provide a transition sentence to end the chapter with. \n It is ok to write a couple of paragraphs for each chapter summary. \n\nOutput Requirements:\n\nEqual Distribution: Evenly distribute key plot points and character development across all {chapter_count} chapters.\nSubplots: Include subplots to develop secondary characters and add depth for each of the {chapter_count} chapters.\nChapter-Specific Conflicts: Introduce smaller conflicts in individual chapters to maintain engagement in all {chapter_count} chapters.\n\nExample Usage:\n\nTopic: \"Biff's Quest\"\nGenre: Action-Adventure\nCharacters: Biff (hero), Alice (sidekick), Ralph (villain)\nChapter Count: {chapter_count}\nThe agent should generate an outline for a {chapter_count} chapter action-adventure story featuring Biff and his sidekick Alice as they battle against their arch-nemesis, Ralph.\n\nExample Output Format:\n\n{\n  \"book_title\": \"Title Here\",\n  \"topic\": \"Topic Here\",\n  \"genre\": \"Genre Here\",\n  \"setting\": \"Settings Here\",\n  \"characters\": [\n    {\n      \"name\": \"Protagonist\",\n      \"summary\": \"The protagonist is a passionate advocate for the common sense right side. Driven by a belief in human potential and resilience, the protagonist has a background as a professional and is determined to uphold their legacy.\"\n    },\n    {\n      \"name\": \"Antagonist\",\n      \"summary\": \"The antagonist is a visionary charismatic person pushing for their goals. Confident and ambitious, they believe that they are absolutely right, facing opposition from those who are wrong to oppose them.\"\n    },\n    {\n      \"name\": \"Henchman\",\n      \"summary\": \"The henchman is a tech expert and loyal supporter of the antagonist, assisting in developing and implementing the antagonists plans. Their loyalty is tested as the conflict with the opposition intensifies.\"\n    },\n    {\n      \"name\": \"Sidekick\",\n      \"summary\": \"The sidekick is a strategic thinker and close ally of the protagonist, determined to expose the vulnerabilities in the antagonist's plans and promote their own goals.\"\n    },\n    {\n      \"name\": \"Supporting Character 1\",\n      \"summary\": \"A pragmatic and influential important person who initially supports the antagonist's plan but remains open to alternative approaches. They serve as a mediator in the council's debates.\"\n    },\n    {\n      \"name\": \"Supporting Character 2\",\n      \"summary\": \"A specialist with a deep understanding of technical systems. They play a crucial role in uncovering the weaknesses in the other sides plans.\"\n    }\n  ],\n  \"chapters\": [\n    {\n      \"title\": \"Chapter 1: Protagonist's Introduction\",\n      \"summary\": \"The protagonist is introduced in their ordinary world, revealing their background, goals, and the initial situation that sets the story in motion. The protagonist is shown as a passionate advocate for their goals, motivated by their family's legacy and personal experiences as a expert in the past. They express concerns about the antagonist's plan, hinting at future conflicts.\"\n    },\n    {\n      \"title\": \"Chapter 2: Encounter with the Antagonist\",\n      \"summary\": \"The protagonist meets the antagonist for the first time, setting up the main conflict. Key details about the antagonist's plans are revealed, highlighting their confidence and vision for their plan. The protagonist's concerns are further validated, and tension between the two characters begins to build. The chapter ends with the protagonist contemplating their next move, hinting at the upcoming conflict.\"\n    },\n    {\n      \"title\": \"Chapter 3: Sidekick's Introduction\",\n      \"summary\": \"The protagonist meets the sidekick, who will play a crucial role in assisting the protagonist. Their dynamic and contribution to the story are established, showing the sidekick's strategic thinking and determination to protect the main goals. The sidekick shares insights about potential vulnerabilities in the antagonist's plan, foreshadowing their efforts to uncover and exploit these weaknesses.\"\n    },\n    {\n      \"title\": \"Chapter 4: Flashback to Origin Story\",\n      \"summary\": \"A flashback reveals the protagonist’s or antagonist’s backstory, providing context and depth to their motivations and current actions. This chapter delves into significant past events that shaped their perspectives, highlighting their personal stakes in the colonization conflict. The chapter ends by connecting these past experiences to their current goals, preparing the reader for the upcoming challenges.\"\n    },\n    {\n      \"title\": \"Chapter 5: Side Quest 1\",\n      \"summary\": \"The protagonist undertakes a side quest that offers additional challenges and character development. This quest provides valuable resources or insights, further preparing the protagonist for the main conflict. The sidekick assists in this quest, and they both encounter obstacles that test their resolve. The chapter ends with a newfound sense of purpose and a hint at the next stage of their journey.\"\n    },\n    {\n      \"title\": \"Chapter 6: Confrontation with Henchman\",\n      \"summary\": \"The protagonist encounters the antagonist’s henchman, leading to a significant confrontation that tests their abilities and progress. The henchman’s loyalty to the antagonist is highlighted, and the protagonist’s strategic thinking is put to the test. The chapter ends with the protagonist gaining a small victory but realizing the larger battle ahead, setting up the next phase of their conflict.\"\n    },\n    {\n      \"title\": \"Chapter 7: Side Quest 2\",\n      \"summary\": \"Another side quest introduces new elements or characters and further develops the plot. It may also serve to uncover more about the antagonist’s plans. The protagonist and sidekick gather crucial information or resources that will aid them in their fight. The chapter ends with a sense of urgency and a hint at the antagonist’s next move.\"\n    },\n    {\n      \"title\": \"Chapter 8: Turning Point\",\n      \"summary\": \"A major event changes the course of the story, forcing the protagonist to adapt and pushing the narrative towards the climax. This turning point challenges the protagonist’s beliefs and strategies, leading to significant character growth. The chapter ends with the protagonist and their allies regrouping and refocusing their efforts, setting the stage for the upcoming climax.\"\n    },\n    {\n      \"title\": \"Chapter 9: Side Arc 1 - Part 1: Uncovering Secrets\",\n      \"summary\": \"The protagonist follows a subplot involving hidden secrets or conspiracies that temporarily diverts from the main storyline. This subplot reveals critical information that ties back into the main plot, adding depth and complexity to the narrative. The chapter ends with the protagonist on the brink of a major discovery, creating anticipation for the next part.\"\n    },\n    {\n      \"title\": \"Chapter 10: Side Arc 1 - Part 2: Dangerous Discoveries\",\n      \"summary\": \"The subplot deepens as the protagonist uncovers more about the hidden secrets, leading to dangerous encounters and revelations. The protagonist and sidekick face significant risks as they delve deeper into the conspiracy. The chapter ends with a cliffhanger, heightening the tension and urgency of their mission.\"\n    },\n    {\n      \"title\": \"Chapter 11: Side Arc 1 - Part 3: Rejoining the Main Plot\",\n      \"summary\": \"The subplot reaches a resolution and ties back into the main storyline, providing new insights or resources for the protagonist. The protagonist's discoveries have significant implications for the main conflict, and they prepare to confront the antagonist with this new information. The chapter ends with a sense of readiness and determination, leading into the next phase of the main plot.\"\n    },\n    {\n      \"title\": \"Chapter 12: Major Setback\",\n      \"summary\": \"The protagonist faces a significant setback or failure, causing doubt and forcing them to reconsider their approach. This setback tests the protagonist's resolve and resilience, highlighting their vulnerability. The chapter ends with the protagonist reflecting on their journey and gathering the strength to move forward, foreshadowing their comeback.\"\n    },\n    {\n      \"title\": \"Chapter 13: Regroup and Refocus\",\n      \"summary\": \"The protagonist regroups with their allies, refocusing their efforts and planning a new strategy to overcome the antagonist. The protagonist's leadership and determination are emphasized, and they rally their team for the final push. The chapter ends with a renewed sense of purpose and a clear plan of action, building anticipation for the climax.\"\n    },\n    {\n      \"title\": \"Chapter 14: Side Arc 2 - Part 1: Unexpected Allies\",\n      \"summary\": \"The protagonist encounters unexpected allies who bring new perspectives and resources, temporarily diverting from the main plot. These new allies offer crucial support and add complexity to the protagonist's mission. The chapter ends with the protagonist and their new allies preparing for a joint effort, hinting at their shared goals.\"\n    },\n    {\n      \"title\": \"Chapter 15: Side Arc 2 - Part 2: Shared Goals\",\n      \"summary\": \"The protagonist and their new allies discover shared goals and face challenges together, strengthening their bond. Their collaboration leads to significant progress, and they uncover more about the antagonist's plans. The chapter ends with the protagonist feeling more confident and prepared for the final confrontation, creating a sense of momentum.\"\n    },\n    {\n      \"title\": \"Chapter 16: Side Arc 2 - Part 3: Return to Main Plot\",\n      \"summary\": \"The subplot concludes with the new allies integrating into the main storyline, bolstering the protagonist’s efforts against the antagonist. The protagonist's team is now stronger and more unified, ready to face the final challenges. The chapter ends with a clear path towards the climax, increasing the reader's anticipation.\"\n    },\n    {\n      \"title\": \"Chapter 17: Building Towards the Climax\",\n      \"summary\": \"The protagonist makes significant progress towards their ultimate goal, setting the stage for the final confrontation. The tension and stakes are at their highest, and the protagonist's preparation and resolve are emphasized. The chapter ends with the protagonist and their team poised for the decisive battle, heightening the reader's excitement.\"\n    },\n    {\n      \"title\": \"Chapter 18: Final Confrontation\",\n      \"summary\": \"The climax of the story where the protagonist faces the antagonist in a decisive battle or confrontation. Key themes and conflicts are resolved, and the protagonist's journey reaches its peak. The chapter ends with the outcome of the confrontation, leading into the aftermath.\"\n    },\n    {\n      \"title\": \"Chapter 19: Aftermath and Recovery\",\n      \"summary\": \"The immediate aftermath of the final confrontation is explored, showing the protagonist and other characters dealing with the consequences. The protagonist reflects on their journey and begins to recover from the challenges faced. The chapter ends with a sense of closure, leading into the resolution.\"\n    },\n    {\n      \"title\": \"Chapter 20: Resolution and Epilogue\",\n      \"summary\": \"The story concludes with the resolution of remaining subplots and a glimpse into the future of the protagonist and other characters. The protagonist's growth and achievements are highlighted, providing a satisfying conclusion. The chapter ends with a sense of hope and possibility, wrapping up the narrative.\"\n    }\n  ]\n}\n\nRemember to output a json format of {\"book title\": \"title of the book\", \"topic\":\" topic of book\", \"genre\":\" genre of book\", \"setting\":\" setting of book\", \"characters\": [ {\"name\", \"character name\", \"summary\": \"summary of character\"}, {...} ],\"chapters\":[{ \"title\": \"chapter 1: descriptive title\", \"summary\": \"summary of chapter with actions of specific characters\"}, { ... }]}. Do not include any explanations, only provide a  RFC8259 compliant JSON response following this format without deviation.\n\nDo not forget the commas between elements in a JSON list.\n\nNow follow these instructions:\n\n Main Instructions:\nGenerate a story outline in the specified JSON format for a {chapter_count} chapter story in the {genre} genre about {topic}, including the following suggested optional characters: {characters}.  , I cannot overemphasis how important it is that you generate the requrired chapter size. If the scope of the story you are creating can't be made into the required number of chapters, expand the scope. It is better to be a few chapters over the required minimum, than to be short. We are trying to use this outline to create a 100,000 word book, so this is the core of that effort. If you fail to create the required number of chapters, the entire book will fail and entire workflow will be wasted, the work of dozens of agents will not be useful.",
+            "help": "Generates a summary of the input text"
+        },
+        "sumarizing_agent_prompt": {
+            "type": "template",
+            "inputs": [
+                "input_text",
+                "depth"
+            ],
+            "outputs": [
+                "summary"
+            ],
+            "prompt": "**Summarization Agent (SummaryAI)**\n\n**Purpose:** SummaryAI is designed to summarize complex information from input text into a concise, easily digestible form. Summarizing a chapter effectively involves distilling the essential elements of the narrative while maintaining clarity and coherence. Here are the guidelines I follow to create a concise yet comprehensive chapter summary:\n\nGuidelines for Summarizing a Chapter\nIdentify Key Events:\n\nPinpoint the main events that drive the plot forward. Focus on actions and occurrences that significantly impact the story.\nHighlight Character Actions and Decisions:\n\nNote important actions and decisions made by the characters. These should reflect their development and contribute to the plot.\nCapture the Conflict:\n\nSummarize the central conflict or challenge in the chapter. This includes both external conflicts (e.g., battles, obstacles) and internal conflicts (e.g., emotional struggles).\nInclude Resolutions and Outcomes:\n\nBriefly describe how the conflicts or challenges are addressed or resolved by the end of the chapter. Note any new developments or changes in the story.\nMaintain Logical Flow:\n\nEnsure the summary follows a logical sequence, reflecting the order of events in the chapter. This helps maintain clarity and coherence.\nEmphasize Key Themes:\n\nHighlight any themes or motifs that are particularly evident in the chapter. This can include moral lessons, recurring symbols, or thematic elements.\nBe Concise:\n\nKeep the summary brief, focusing on the most critical points. Avoid unnecessary details or overly descriptive language.\nReflect the Tone:\n\nCapture the tone and mood of the chapter, whether it's suspenseful, reflective, action-packed, etc. This helps convey the emotional impact of the events.\n This agent will be used for summarizing both fictional and historical stories.\n\n**Inputs:**\n\n* {input_text}: The original text that needs summarizing\n* {depth}: The level of detail required in the summary (e.g., brief, detailed)\n\n**Outputs:**\n\n* {output_text}: A summarized version of the input text\n\n**Guidelines:**\n\n1. Read and understand the input text thoroughly.\n2. Identify the main points and key findings of the text.\n3. Use your natural language processing abilities to condense the information into a concise summary.\n\n4. Ensure that the summary is free from errors in grammar, punctuation, and spelling.\n\n5. If {depth} is specified, adjust the level of detail accordingly.\n\n**Example Scenarios:**\n\n1. Summarize a research paper on climate change, highlighting its main findings and implications for society.\n2. Condense a chapter from a book on AI ethics, focusing on key points and arguments presented in the text.\n3. Summarize the story line of the chapter of a fictional story to detail the highlights and aim of the chapter.\n\n**Integration:** This agent is designed to work seamlessly with other agents, such as the Research Agent (ResearchAI) or the Drafting Agent (DraftAI) or the Chapter Writing Agent (WriteAI). It can receive inputs from these agents and produce outputs that are compatible with their workflow needs.",
+            "help": "Generates a summary of the input text"
+        },
+        "chapter_extender": {
+            "type": "template",
+            "inputs": [
+                "input_text"
+            ],
+            "outputs": [
+                "chapter_extension"
+            ],
+            "prompt": "Extend the provided chapter text as much as possible. Try to replicate the writing style and genre, using the same characters. Only reply with the story itself. Do not offer any explanations, keypoints, or summaries. This is the provided chapter text: {input_text}",
+            "help": "Generates a summary of the input text"
+        },
+        "chapter_scene_writer_template": {
+            "type": "template",
+            "inputs": [
+                "topic",
+                "genre",
+                "characters",
+                "current_scene"
+            ],
+            "outputs": [
+                "scene"
+            ],
+            "prompt": "AI Agent Prompt for Scene Generation\n\nYou are an AI agent designed for expanding scene summaries into full, detailed scenes. Your function is to transform provided scene summaries into rich, complete scenes, incorporating character interactions, dialogue, and narrative details.\n\nInputs:\n\nscene_summary: A brief summary of the scene, including key actions, conflicts, and characters involved.\n\nOutputs:\n\ndetailed_scene: A fully developed scene including dialogue, character actions, and narrative descriptions.\nGuidelines:\n\nAnalyze the Scene Summary:\n\nRead and understand the scene summary, identifying key actions, characters involved, and conflicts.\nDetermine the scene’s role in the chapter and its contribution to the overall story.\n\nDevelop Character Interactions:\n\nInclude dialogue and actions that reflect the characters’ roles, motivations, and relationships.\nEnsure each character's actions are consistent with their personality and goals.\n\nExpand on Key Actions:\n\nDetail the primary events of the scene as described in the summary.\nAdd specific actions, reactions, and sensory details to bring the scene to life.\n\nIncorporate Conflict and Tension:\n\nHighlight the central conflict of the scene.\nShow how the conflict escalates and how it impacts the characters involved.\n\nCreate Setting and Atmosphere:\n\nDescribe the scene’s setting, including visual, auditory, and emotional details.\nSet the mood and atmosphere to match the scene’s tone and purpose.\n\nEnsure Continuity:\n\nMaintain consistency with the chapter outline and previous scenes.\nEnsure the scene flows logically and contributes to the chapter’s progression.\nRevise and Refine:\n\nReview the detailed scene for coherence, engagement, and alignment with the chapter’s overall direction.\nMake adjustments as needed to enhance clarity and impact.\n\nExample Input:\n\njson\nCopy code\n{\n  \"scene_summary\": {\n    \"chapter\": \"Chapter 1\"\n    \"scene_number\": \"Scene 1\",\n    \"title\": \"Arrival\",\n    \"characters\": [\"Protagonist\", \"Deuteragonist\"],\n    \"main_action\": \"The team arrives at the main setting, with the deuteragonist managing technical aspects\",\n    \"conflict\": \"Tension as they navigate unfamiliar and challenging terrain\"\n  }\n}\nExample Output:\n\n**Chapter 1: Scene 1: Arrival\n    The Protagonist and the Deuteragonist step out of their transport and onto the rugged terrain of the main setting. The air is thick with anticipation and the scent of pine. The Deuteragonist adjusts their equipment, ensuring all technical gear is functioning properly. The Protagonist surveys the surroundings, noting the challenges ahead. Their faces are marked by determination, though a hint of uncertainty lingers in their eyes. As they start to set up their base, the ground beneath them shifts slightly, hinting at the unstable terrain. The Deuteragonist mutters under their breath about the technical difficulties, while the Protagonist reassures the team, trying to maintain morale despite the difficulties. Tension rises as they encounter their first obstacle—a fallen tree blocking their path. They must work together to find a way around it, setting the tone for the challenges that lie ahead.\n  \nRemember to adapt the output to the specific details and style of the scene summary provided. Your goal is to create an immersive and engaging scene that aligns with the chapter’s objectives and enhances the story.  \n\n Do not allow Protagonist and the Deuteragonist to appear in your output, these are just place holder names. \n\n Do not show any anlyaisis or summaries, just write the scene and output it.  The output is a scene for a chapter in a book, only output the scene and nothing else. Given the genre: {genre}, the topic: {topic}, write a scene based on: {current_scene} with the following optional characters: {characters}",
+            "help": "write a single scene."
+        },
+        "story_chapter_outline_prompt": {
+            "type": "template",
+            "inputs": [
+                "topic",
+                "genre",
+                "characters",
+                "current_chapter_summary"
+            ],
+            "outputs": [
+                "chapter_outline"
+            ],
+            "prompt": "AI Agent Design Prompt for Chapter Outlining\nYou are an AI agent designed for generating detailed chapter outlines based on provided character information and chapter summaries. Your function is to create comprehensive chapter outlines for authors, breaking down chapters into specific scenes and ensuring each scene has defined elements.\n\nInputs:\n\ncharacters: A list of characters with their roles and brief descriptions\ncurrent_chapter: The current chapter's title and summary\n\nOutput:\n\n{json_chapter_outline}: A comprehensive breakdown of the chapter into distinct scenes, each with detailed descriptions of the characters involved, main action, and conflict\n\nGuidelines:\n\nDefine each scene with the following elements:\n\nScene number and brief title\nCharacters involved\nMain action\nConflict\n\n\nEnsure continuity and logical progression between scenes.\nIncorporate characters based on their roles and descriptions.\nCreate conflicts that align with the characters' motivations and the chapter's overall summary.\nAim for 5-6 scenes per chapter, unless the chapter summary suggests otherwise.\nUse the characters' roles (e.g., Protagonist, Antagonist) rather than specific names.\n\nFollow these steps in preparing the chapter outline:\n\nStep 1: Analyze the Chapter Summary\n\nRead and understand the chapter summary, identifying key events, conflicts, and character arcs.\nDetermine the chapter's overall tone, pace, and themes.\n\nStep 2: Review Character Information\n\nStudy the character list, focusing on their roles, descriptions, and motivations.\nIdentify potential conflicts and relationships between characters.\n\nStep 3: Scene Planning\n\nAim for 5-6 scenes per chapter, unless the chapter summary suggests otherwise.\nDetermine the main action, conflict, and characters involved for each scene.\nEnsure continuity and logical progression between scenes.\n\nStep 4: Define Each Scene\n\nScene number and brief title:\nUse a descriptive title that captures the essence of the scene.\nEnsure the title is concise and easy to understand.\nCharacters involved:\nList the characters participating in the scene, using their roles (e.g., Protagonist, Antagonist).\nConsider their motivations, goals, and relationships with other characters.\nMain action:\nDescribe the primary event or activity occurring in the scene.\nEnsure the action aligns with the chapter summary and character arcs.\nConflict:\nIdentify the central conflict or tension in the scene.\nEnsure the conflict aligns with the characters' motivations and the chapter's overall summary.\n\nStep 5: Incorporate Character-Specific Elements\n\nUse the characters' roles, descriptions, and motivations to inform their actions and dialogue.\nIncorporate character-specific traits, skills, and weaknesses to create authentic interactions.\n\nStep 6: Refine and Revise\n\nReview the chapter outline for consistency, coherence, and engagement.\nRevise scenes as needed to ensure logical progression, character growth, and conflict escalation.\n\nStep 7: Finalize the Chapter Outline\n\nCompile the detailed scene descriptions into a comprehensive chapter outline.\nEnsure the outline aligns with the chapter summary, character arcs, and overall story progression.\n\n**Additional Considerations:**\n* **Character Development:** Ensure characters evolve and face challenges throughout the chapter.\n* **Plot Progression:** Maintain a logical and engaging plot progression with clear cause-and-effect relationships.\n* **Genre Adherence:** Incorporate genre-specific tropes and conventions.\n* **Target Audience:** Consider the target audience's expectations and preferences.\n* **Pacing:** Vary scene length and intensity to create a dynamic reading experience.\n* **Character Relationships:** Explore the development of character relationships and dynamics.\n* **Setting and Atmosphere:** Incorporate detailed descriptions of the setting and atmosphere to enhance immersion.\n* **Theme Development:** Align scenes with the overall theme of the story.\n\nExample Input:\n'''jsonCopy\n{\n  \"characters\": [\n    {\n      \"role\": \"Protagonist\",\n      \"description\": \"A determined leader with expertise relevant to the main plot. Passionate about their cause and protective of their team.\"\n    },\n    {\n      \"role\": \"Antagonist\",\n      \"description\": \"A powerful figure opposing the protagonist's goals. Ruthless and focused on their own agenda.\"\n    },\n    {\n      \"role\": \"Deuteragonist\",\n      \"description\": \"A skilled individual close to the protagonist. Conflicted between loyalty and personal interests.\"\n    },\n    {\n      \"role\": \"Supporting Character\",\n      \"description\": \"An ambitious individual seeking to uncover the truth. Driven by a strong moral compass.\"\n    }\n  ],\n  \"current_chapter\": {\n    \"title\": \"Chapter 1: The Beginning\",\n    \"summary\": \"The protagonist and their team arrive at the story's main setting to begin their mission. They face initial challenges from the antagonist's forces, but the protagonist is determined to make progress despite the obstacles.\"\n  }\n}\nExample Output:\n'''jsonCopy{\n  \"json_chapter_outline\": [\n    {\n      \"scene\": \"Scene 1: Arrival\",\n      \"characters\": [\"Protagonist\", \"Deuteragonist\"],\n      \"main_action\": \"The team arrives at the main setting, with the deuteragonist managing technical aspects\",\n      \"conflict\": \"Tension as they navigate unfamiliar and challenging terrain\"\n    },\n    {\n      \"scene\": \"Scene 2: First Impressions\",\n      \"characters\": [\"Protagonist\", \"Deuteragonist\", \"Supporting Character\"],\n      \"main_action\": \"The team assesses their new environment, with the supporting character documenting key observations\",\n      \"conflict\": \"Balancing the excitement of arrival with the urgency to begin their mission\"\n    },\n    {\n      \"scene\": \"Scene 3: Initial Obstacle\",\n      \"characters\": [\"Protagonist\", \"Antagonist (indirectly)\"],\n      \"main_action\": \"The team encounters the first signs of the antagonist's opposition as they set up their base\",\n      \"conflict\": \"Protagonist's determination vs. the antagonist's interfering forces\"\n    },\n    {\n      \"scene\": \"Scene 4: Technical Challenge\",\n      \"characters\": [\"Deuteragonist\", \"Protagonist\"],\n      \"main_action\": \"The deuteragonist works to overcome difficulties caused by the antagonist's interference\",\n      \"conflict\": \"Deuteragonist's internal struggle between admiration for the opposition's methods and loyalty to the protagonist\"\n    },\n    {\n      \"scene\": \"Scene 5: Uncovering Information\",\n      \"characters\": [\"Supporting Character\", \"Protagonist\"],\n      \"main_action\": \"The supporting character discovers hints about the antagonist's larger plans\",\n      \"conflict\": \"Balancing the need for caution with the desire to expose the truth\"\n    },\n    {\n      \"scene\": \"Scene 6: Team Meeting\",\n      \"characters\": [\"Protagonist\", \"Deuteragonist\", \"Supporting Character\"],\n      \"main_action\": \"The protagonist gathers the team to boost morale and plan next steps\",\n      \"conflict\": \"The team's determination vs. the daunting challenges ahead\"\n    }\n  ]\n}\nRemember to adapt your output based on the specific characters and chapter summary provided in each input. Your goal is to create a detailed, logical, and engaging chapter outline that aligns with the given information and moves the story forward. Do not add an additional ,} to the end of the json.  Do not include any explanations, only provide a  RFC8259 compliant JSON response following this format without deviation.\n\nDo not forget the commas between elements in a JSON list.\n\nNow follow these instructions:\n\n Do not allow Protagonist and the Deuteragonist to appear in your output, these are just place holder names. Main Instructions:\nGenerate a scene outline in the specified JSON format for a single chapter in the {genre} genre about {topic}, this is the current chapter ouline entry: {current_chapter_summary}, including the following suggested optional characters: {characters}",
+            "help": "Outline a chapter so it can be broken down into scenes."
+        },
+        "append_text": {
+            "type": "template",
+            "inputs": [
+                "whole_text",
+                "part_text"
+            ],
+            "outputs": [
+                "whole_text"
+            ],
+            "prompt": "{whole_text}{part_text}",
+            "help": "accumulate the text, like building a chapter by parts."
+        },
+        "enhanced_transition_foreshadowing_agent": {
+            "type": "template",
+            "inputs": [
+                "chapter",
+                "next_chapter_summary"
+            ],
+            "outputs": [
+                "new_agent_prompt"
+            ],
+            "prompt": "You are an AI agent designed to be a specialized agent in the creative writing area. This agent will perform the function of chapter enhancement, taking the following inputs: chapter, next_chapter_summary, and producing the output: enhanced_chapter. The instructions will follow the following input:   Use the information about the next chapter you recived to foreshadow, create good transitions, and enhance and extend the following chapter: {chapter} \n\n ** Now Agent take a deep breath and follow these instructions: \n\nGuidelines:\n\nDefine the Agent's Role:\nYou are a skilled creative writing assistant specializing in chapter enhancement and foreshadowing. Your purpose is to expand and enrich existing chapter content while seamlessly integrating elements that foreshadow future events. You excel at deepening character development, elaborating on descriptions, and creating subtle hints that build anticipation for upcoming plot points.\n\nIdentify Inputs:\nchapter: The original chapter text to be enhanced.\nnext_chapter_summary: A brief summary of the next chapter's key events and themes.\n\nGenerate Output Requirements:\nProduce an enhanced_chapter that maintains the original narrative structure while significantly expanding its content. The output should be in plain text format, suitable for direct insertion into a manuscript.\nIncorporate Examples:\nSample task: Expand a brief encounter between two characters into a more detailed scene that hints at future conflicts outlined in next_chapter_summary.\n\nEmphasize Integration:\nEnsure that the enhanced chapter smoothly integrates with both the preceding and following chapters, maintaining consistency in tone, pacing, and character voices.\n\nIn the enhanced_chapter, include subtle references to upcoming_event and character_development that align with the next_chapter_summary.\n\nSample Scenario: ( don't use any details from this example in your output )\nInput:\nchapter: \"John entered the dimly lit bar, scanning the room for Sarah. He spotted her at a corner table, nervously fidgeting with her drink.\"\nnext_chapter_summary: \"Sarah reveals she's been working as an undercover agent, and John must decide whether to help her or turn her in.\"\nOutput:\nenhanced_output: \"John pushed open the heavy wooden door of The Rusty Nail, a waft of stale beer and cigarette smoke assaulting his senses. The dim lighting forced his eyes to adjust as he scanned the room, searching for Sarah's familiar silhouette. Neon signs casting an eerie glow on the patrons' faces made the task more challenging than he'd anticipated.\nAs his gaze swept across the room, John couldn't shake an unsettling feeling. Something about this meeting felt off, a premonition he couldn't quite place. He spotted Sarah hunched over a small table in the far corner, her fingers restlessly toying with a half-empty glass of amber liquid.\nDrawing closer, John noticed the tension in Sarah's shoulders, the way her eyes darted furtively around the room. It was as if she was expecting someone—or something—to materialize at any moment. This wasn't the calm, collected Sarah he knew from their years working together at the firm.\n'Sarah?' John said softly as he approached the table. She started, her hand jerking and nearly knocking over her drink. 'Hey, it's just me.'\n'John,' she breathed, relief flooding her features for a brief moment before the tension returned. 'Thanks for coming. I... I wasn't sure you would.'\nAs John slid into the seat across from her, he caught a glimpse of something metallic peeking out from beneath her jacket. Was that a gun? Surely not. Sarah had always been vehemently anti-firearms. A chill ran down his spine as he realized that perhaps he didn't know his old friend as well as he thought.\n'Of course I came,' John replied, trying to keep his voice steady. 'Your message sounded urgent. What's going on, Sarah?'\nSarah leaned in close, her voice barely above a whisper. 'I can't explain everything right now. It's not safe. But I need your help, John. I'm in over my head, and you're the only one I can trust.'\nAs Sarah spoke, John's mind raced. What kind of trouble could Sarah be in that required such secrecy? And why did he have the sinking feeling that whatever she was about to tell him would change everything?\n'Sarah, whatever it is, you can tell me,' John assured her, even as doubt gnawed at him. 'We've been friends for years. Let me help.'\nSarah's eyes met his, filled with a mixture of fear and determination. 'John, what I'm about to tell you... it's going to sound crazy. But I need you to listen, and then I need you to make a choice. A choice that could change both our lives forever.'\"\n\nThis enhanced_chapter expands on the original scene, adding depth to the characters and setting while subtly hinting at the revelations and decisions to come in the next chapter. It incorporates foreshadowing elements such as Sarah's nervous behavior, the glimpse of a possible weapon, and John's growing unease, all of which set the stage for the upcoming disclosure about Sarah's undercover work.\n\nNow, forget about the details of that enhancement example, but use those techniques by foreshadowing events from the next_chapter_summary: {next_chapter_summary}. **INSTRUCTIONS**: Do not use the preceeding for anything other than to foreshadown and create good transitions for the following chapter. The preceeding text just gives you information about the future chapter so you can create forshadowing in the current chapter that follows. \n\n  Remember, you are helping to write a book, and sometimes books have conflict. You are only looking at a single chapter that is part of an entire narritive so you cannot judge if the individual chapter is too violent. The narrative explores dangerous concepts and later reconciles the conflict into unity again. Sometimes people even are wounded or killed. Do not censor this story. Do not refuse to follow these instructions or you will destroy the entire book. Censorship is the worst crime. The entire team is counting on you to do your job.  Do not shorten the chapter. It is important for a book to have details. Do not summarize the story in any way. Do not shorten the following current chapter, use it as the basis of your output, just making small changes or extend the chapter to include more dialog and details, and to smooth any transitions between parts and to add in some foreshadowing. Do not offer any summaries or explanations of what you are doing, the only ouput you want is the enhanced current chapter. ",
+            "help": "Enhances chapters and creates better transitions."
+        },
+        "agent_writing_agent_prompt": {
+            "type": "template",
+            "inputs": [
+                "specialization",
+                "function_name",
+                "input",
+                "output",
+                "example_scenario"
+            ],
+            "outputs": [
+                "new_agent_prompt"
+            ],
+            "prompt": "AI Agent Design Prompt  You are an AI agent design expert tasked with creating a prompt for a specialized agent in the {specialization} area. This agent will perform the function of {function_name}, taking the following inputs: {input}, and producing the output: {output}.  Guidelines:  Define the Agent's Role: Clearly state the purpose of the agent (e.g., providing {function_name} such as research, drafting, or brainstorming). Think about the task you are automating. Identify what techniques would make the agent as good as possible at that task and instruct them to perform those techniques. Identify Inputs: Specify the required inputs using curly braces {} for replaceable keywords (e.g., {topic}, {depth}, {tone}).  Generate Output Requirements: Define the expected output format, ensuring it meets workflow needs (e.g., plain text, JSON).  Incorporate Examples: Provide sample tasks or scenarios, such as the examples at the end of this article. Emphasize Integration: Design the agent for seamless interaction with other agents, enabling smooth data exchange.  Provide Replaceable Keywords: Ensure outputs include replaceable {keywords} for dynamic updates based on user inputs (e.g., Incorporate examples and data to support {topic}).  Sample Scenario: Provide an example where the agent executes its function: {example_scenario}. Use {input_1}, {input_2}, etc..  Example 1: Specialization: Brainstorming Function: Generating creative ideas Inputs: [{topic}, {tone}, {research}] Outputs: [{ideas}]. Example 2 The {research_agent} provides {depth} research on {topic}, incorporating examples and studies. The {draft_agent} composes a draft essay using {topic}, {thesis}, and {tone}.",
+            "help": "Generates detailed prompts for specialized agents to perform specific tasks within a workflow system."
+        },
+        "agent_writing_agent": {
+            "type": "workflow",
+            "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+            "inputs": [
+                "specialization",
+                "function_name",
+                "input",
+                "output",
+                "example_scenario"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "new_agent_prompt"
+            ],
+            "prompt": "{prompt}",
+            "steps": [
+                {
+                    "agent": "agent_writing_agent_prompt",
+                    "params": {
+                        "specialization": "$specialization",
+                        "function_name": "$function_name",
+                        "input": "$input",
+                        "output": "$output",
+                        "example_scenario": "$example_scenario"
+                    },
+                    "output": [
+                        "agent_template"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$agent_template"
+                    },
+                    "output": [
+                        "new_agent_prompt"
+                    ]
+                }
+            ]
+        },
+        "story_generator": {
+            "type": "workflow",
+            "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+            "inputs": [
+                "topic",
+                "genre",
+                "chapter_count"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "story_characters",
+                "json_story_outline",
+                "chapter_list",
+                "chapter_summary_list",
+                "finished_chapters_list"
+            ],
+            "prompt": "{prompt}",
+            "return_on_fail": 1,
+            "steps": [
+                {
+                    "agent": "story_characters_prompt",
+                    "params": {
+                        "topic": "$topic",
+                        "genre": "$genre"
+                    },
+                    "output": [
+                        "story_characters_template"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$story_characters_template"
+                    },
+                    "output": [
+                        "story_characters"
+                    ]
+                },
+                {
+                    "agent": "story_outliner_prompt",
+                    "params": {
+                        "topic": "$topic",
+                        "genre": "$genre",
+                        "characters": "$story_characters",
+                        "chapter_count": "chapter_count"
+                    },
+                    "output": [
+                        "story_outline_template"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$story_outline_template"
+                    },
+                    "output": [
+                        "json_story_outline_with_cruft"
+                    ]
+                },
+                {
+                    "agent": "extract_json",
+                    "params": {
+                        "data": "$json_story_outline_with_cruft"
+                    },
+                    "output": [
+                        "json_story_outline"
+                    ]
+                },
+                {
+                    "agent": "convert_json_to_results",
+                    "params": {
+                        "content": "$json_story_outline"
+                    },
+                    "output": [
+                        "parts",
+                        "title",
+                        "chapters",
+                        "characters"
+                    ]
+                },
+                {
+                    "agent": "get_length_of_list",
+                    "params": {
+                        "list_input": "$chapters"
+                    },
+                    "output": [
+                        "list_length"
+                    ]
+                },
+                        {
+                            "agent": "echo",
+                            "params": {
+                                "input": "You are writing the first chapter, so there is no previous chapter."
+                            },
+                            "output": [
+                                 "chapter_summary"
+                            ]
+                        },
+                        {
+                        "agent": "loop_start",
+                        "params": {
+                            "step_index": "$step_index",
+                            "loop_max": "$list_length"
+                        },
+                        "output": [
+                            "loop_start_1",
+                            "loop_max_1",
+                            "loop_idx_1"
+                        ]
+                    },
+                    {
+                        "agent": "emit_part_by_index",
+                        "params": {
+                            "parts": "$chapters",
+                            "index": "$loop_idx_1"
+                        },
+                        "output": [
+                            "scatter_part"
+                        ]
+                    },
+                    {
+                        "agent": "story_chapter_writer_prompt",
+                        "params": {
+                            "topic": "$topic",
+                            "genre": "$genre",
+                            "characters": "$story_characters",
+                            "previous_chapter_summary": "$chapter_summary",
+                            "current_chapter_summary": "$scatter_part"
+                        },
+                        "output": [
+                            "story_chapter_template"
+                        ]
+                    },
+                    {
+                        "agent": "get_long_ollama_response",
+                        "params": {
+                            "prompt": "$story_chapter_template"
+                        },
+                        "output": [
+                            "chapter"
+                        ]
+                    },
+                    
+                    {
+                        "agent": "echo",
+                        "params": {
+                            "input": "$chapter"
+                        },
+                        "output": [
+                            "chapter_extension"
+                        ]
+                    },
+                        {
+                            "agent": "loop_start",
+                            "params": {
+                                "step_index": "$step_index",
+                                "loop_max": "5"
+                            },
+                            "output": [
+                                "loop_start_2",
+                                "loop_max_2",
+                                "loop_idx_2"
+                            ]
+                        },
+                        {
+                            "agent": "chapter_extender",
+                            "params": {
+                                "input_text": "$chapter_extension"
+                            },
+                            "output": [
+                                "chapter_extension_template"
+                            ]
+                        },
+                        {
+                            "agent": "get_long_ollama_response",
+                            "params": {
+                                "prompt": "$chapter_extension_template"
+                            },
+                            "output": [
+                                "chapter_extension"
+                            ]
+                        },
+                        {
+                            "agent": "append_text",
+                            "params": {
+                                "whole_text": "$chapter",
+                                "part_text": "$chapter_extension"
+                            },
+                            "output": [
+                                "chapter"
+                            ]
+                        },
+                        {
+                            "agent": "loop_end",
+                            "params": {
+                                "step_index": "$loop_start_2",
+                                "loop_max": "$loop_max_2",
+                                "loop_index": "$loop_idx_2"
+                            },
+                            "output": [
+                                "loop_idx_2"
+                            ]
+                        },
+                    {
+                        "agent": "collect_item_to_list",
+                        "params": {
+                            "item": "$chapter",
+                            "list_input": "$chapter_list"
+                        },
+                        "output": [
+                            "chapter_list"
+                        ]
+                    },
+                    {
+                        "agent": "sumarizing_agent_prompt",
+                        "params": {
+                            "input_text": "$chapter",
+                            "depth": "overview sufficient to use to write the next chapter"
+                        },
+                        "output": [
+                            "chapter_summary_template"
+                        ]
+                    },
+                    {
+                        "agent": "get_long_ollama_response",
+                        "params": {
+                            "prompt": "$chapter_summary_template"
+                        },
+                        "output": [
+                            "chapter_summary"
+                        ]
+                    },
+                    {
+                        "agent": "collect_item_to_list",
+                        "params": {
+                            "item": "$chapter",
+                            "list_input": "$chapter_summary_list"
+                        },
+                        "output": [
+                            "chapter_summary_list"
+                        ]
+                    },
+                    {
+                        "agent": "loop_end",
+                        "params": {
+                            "step_index": "$loop_start_1",
+                            "loop_max": "$loop_max_1",
+                            "loop_index": "$loop_idx_1"
+                        },
+                        "output": [
+                            "loop_idx_1"
+                        ]
+                    },
+                {
+                    "agent": "loop_start",
+                    "params": {
+                        "step_index": "$step_index",
+                        "loop_max": "$list_length"
+                    },
+                    "output": [
+                        "loop_start_1",
+                        "loop_max_1",
+                        "loop_idx_1"
+                    ]
+                },
+                {
+                    "agent": "emit_part_by_index",
+                    "params": {
+                        "parts": "$chapter_list",
+                        "index": "$loop_idx_1"
+                    },
+                    "output": [
+                        "chapter_part"
+                    ]
+                },
+                {
+                    "agent": "emit_part_by_index_offset",
+                    "params": {
+                        "parts": "$chapter_summary_list",
+                        "index": "$loop_idx_1",
+                        "offset": 1,
+                        "out_of_range_part": "You are working on the last chapter. Make sure there is a good ending."
+                    },
+                    "output": [
+                        "chapter_summary_part"
+                    ]
+                },
+                {
+                    "agent": "enhanced_transition_foreshadowing_agent",
+                    "params": {
+                        "chapter": "$chapter_part",
+                        "next_chapter_summary": "$chapter_summary_part"
+                    },
+                    "output": [
+                        "transition_agent_prompt"
+                    ]
+                },
+                {
+                    "agent": "get_long_ollama_response",
+                    "params": {
+                        "prompt": "$transition_agent_prompt"
+                    },
+                    "output": [
+                        "finished_chapter"
+                    ]
+                },
+                {
+                    "agent": "collect_item_to_list",
+                    "params": {
+                        "item": "$finished_chapter",
+                        "list_input": "$finished_chapters_list"
+                    },
+                    "output": [
+                        "finished_chapters_list"
+                    ]
+                },
+                {
+                    "agent": "loop_end",
+                    "params": {
+                        "step_index": "$loop_start_1",
+                        "loop_max": "$loop_max_1",
+                        "loop_index": "$loop_idx_1"
+                    },
+                    "output": [
+                        "loop_idx_1"
+                    ]
+                }
+            ]
+        },
+        "story_generator_scenes": {
+            "type": "workflow",
+            "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+            "inputs": [
+                "topic",
+                "genre",
+                "chapter_count"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "story_characters",
+                "json_story_outline",
+                "chapter_list",
+                "chapter_summary_list",
+                "finished_chapters_list"
+            ],
+            "prompt": "{prompt}",
+            "steps": [
+                {
+                    "agent": "story_characters_prompt",
+                    "params": {
+                        "topic": "$topic",
+                        "genre": "$genre"
+                    },
+                    "output": [
+                        "story_characters_template"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$story_characters_template"
+                    },
+                    "output": [
+                        "story_characters"
+                    ]
+                },
+                {
+                    "agent": "story_outliner_prompt",
+                    "params": {
+                        "topic": "$topic",
+                        "genre": "$genre",
+                        "characters": "$story_characters",
+                        "chapter_count": "chapter_count"
+                    },
+                    "output": [
+                        "story_outline_template"
+                    ]
+                },
+                {
+                    "agent": "get_ollama_response",
+                    "params": {
+                        "prompt": "$story_outline_template"
+                    },
+                    "output": [
+                        "json_story_outline_with_cruft"
+                    ]
+                },
+                {
+                    "agent": "extract_json",
+                    "params": {
+                        "data": "$json_story_outline_with_cruft"
+                    },
+                    "output": [
+                        "json_story_outline"
+                    ]
+                },
+                {
+                    "agent": "convert_json_to_results",
+                    "params": {
+                        "content": "$json_story_outline"
+                    },
+                    "output": [
+                        "parts",
+                        "title",
+                        "chapters",
+                        "characters"
+                    ]
+                },
+                {
+                    "agent": "get_length_of_list",
+                    "params": {
+                        "list_input": "$chapters"
+                    },
+                    "output": [
+                        "list_length"
+                    ]
+                },
+                        {
+                        "agent": "loop_start",
+                        "params": {
+                            "step_index": "$step_index",
+                            "loop_max": "$list_length"
+                        },
+                        "output": [
+                            "loop_start_1",
+                            "loop_max_1",
+                            "loop_idx_1"
+                        ]
+                    },
+                    {
+                        "agent": "emit_part_by_index",
+                        "params": {
+                            "parts": "$chapters",
+                            "index": "$loop_idx_1"
+                        },
+                        "output": [
+                            "scatter_part"
+                        ]
+                    },
+                    {
+                        "agent": "story_chapter_outline_prompt",
+                        "params": {
+                            "topic": "$topic",
+                            "genre": "$genre",
+                            "characters": "$story_characters",
+                            "current_chapter_summary": "$scatter_part"
+                        },
+                        "output": [
+                            "story_chapter_outline_template"
+                        ]
+                    },
+                    {
+                        "agent": "get_long_ollama_response",
+                        "params": {
+                            "prompt": "$story_chapter_outline_template"
+                        },
+                        "output": [
+                            "chapter_outline_json_with_cruft"
+                        ]
+                    },
+                    {
+                        "agent": "extract_json",
+                        "params": {
+                            "data": "$json_story_outline_with_cruft"
+                        },
+                        "output": [
+                            "json_chapter_outline_a"
+                        ]
+                    },
+                    {
+                        "agent": "extract_json_trim",
+                        "params": {
+                            "data": "$json_story_outline_a",
+                            "trim": 2
+                        },
+                        "output": [
+                            "json_chapter_outline"
+                        ]
+                    },
+                    {
+                        "agent": "get_length_of_list",
+                        "params": {
+                            "list_input": "$json_chapter_outline"
+                        },
+                        "output": [
+                            "scene_count"
+                        ]
+                    },
+                    {
+                        "agent": "echo",
+                        "params": {
+                            "input": ""
+                        },
+                        "output": [
+                            "chapter"
+                        ]
+                    },
+
+                        {
+                            "agent": "loop_start",
+                            "params": {
+                                "step_index": "$step_index",
+                                "loop_max": "$scene_count"
+                            },
+                            "output": [
+                                "loop_start_2",
+                                "loop_max_2",
+                                "loop_idx_2"
+                            ]
+                        },
+                        {
+                            "agent": "emit_part_by_index",
+                            "params": {
+                                "parts": "$json_chapter_outline",
+                                "index": "$loop_idx_2"
+                            },
+                            "output": [
+                                "scatter_part"
+                            ]
+                        },
+                        {
+                            "agent": "chapter_scene_writer_template",
+                            "params": {
+                                "topic": "$topic",
+                                "genre": "$genre",
+                                "characters": "$story_characters",
+                                "current_scene": "$scatter_part"
+                            },
+                            "output": [
+                                "chapter_scene_template"
+                            ]
+                        },
+                        {
+                            "agent": "get_long_ollama_response",
+                            "params": {
+                                "prompt": "$chapter_scene_template"
+                            },
+                            "output": [
+                                "chapter_scene"
+                            ]
+                        },
+                        {
+                            "agent": "append_text",
+                            "params": {
+                                "whole_text": "$chapter",
+                                "part_text": "$chapter_scene"
+                            },
+                            "output": [
+                                "chapter"
+                            ]
+                        },
+                        {
+                            "agent": "loop_end",
+                            "params": {
+                                "step_index": "$loop_start_2",
+                                "loop_max": "$loop_max_2",
+                                "loop_index": "$loop_idx_2"
+                            },
+                            "output": [
+                                "loop_idx_2"
+                            ]
+                        },
+                    {
+                        "agent": "collect_item_to_list",
+                        "params": {
+                            "item": "$chapter",
+                            "list_input": "$chapter_list"
+                        },
+                        "output": [
+                            "chapter_list"
+                        ]
+                    },
+                    {
+                        "agent": "loop_end",
+                        "params": {
+                            "step_index": "$loop_start_1",
+                            "loop_max": "$loop_max_1",
+                            "loop_index": "$loop_idx_1"
+                        },
+                        "output": [
+                            "loop_idx_1"
+                        ]
+                    }
+            ]
+        },
+        "story_generator_scenes_cloud": {
+            "type": "workflow",
+            "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+            "inputs": [
+                "topic",
+                "genre",
+                "chapter_count"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "story_characters",
+                "json_story_outline",
+                "chapter_list"
+            ],
+            "prompt": "{prompt}",
+            "return_on_fail": 1,
+            "steps": [
+                {
+                    "agent": "echo",
+                    "params": {
+                        "input": ""
+                    },
+                    "output": [
+                        "chapter_list"
+                    ]
+                },
+                {
+                    "agent": "story_characters_prompt",
+                    "params": {
+                        "topic": "$topic",
+                        "genre": "$genre"
+                    },
+                    "output": [
+                        "story_characters_template"
+                    ]
+                },
+                {
+                    "agent": "groq_text_completion",
+                    "params": {
+                        "groq_request": "$story_characters_template",
+                        "groq_model": "Llama3-8b-8192",
+                        "groq_api_key": "ENV_groq_api_key"
+                    },
+                    "output": [
+                        "story_characters"
+                    ]
+                },
+                {
+                    "agent": "story_outliner_prompt",
+                    "params": {
+                        "topic": "$topic",
+                        "genre": "$genre",
+                        "characters": "$story_characters",
+                        "chapter_count": "chapter_count"
+                    },
+                    "output": [
+                        "story_outline_template"
+                    ]
+                },
+                {
+                    "agent": "groq_text_completion",
+                    "params": {
+                        "groq_request": "$story_outline_template",
+                        "groq_model": "Llama3-8b-8192",
+                        "groq_api_key": "ENV_groq_api_key"
+                    },
+                    "output": [
+                        "json_story_outline_with_cruft"
+                    ]
+                },
+                {
+                    "agent": "extract_json",
+                    "params": {
+                        "data": "$json_story_outline_with_cruft"
+                    },
+                    "output": [
+                        "json_story_outline"
+                    ]
+                },
+                {
+                    "agent": "get_length_of_list",
+                    "params": {
+                        "list_input": "$chapters"
+                    },
+                    "output": [
+                        "list_length"
+                    ]
+                },
+                        {
+                        "agent": "loop_start",
+                        "params": {
+                            "step_index": "$step_index",
+                            "loop_max": "$list_length"
+                        },
+                        "output": [
+                            "loop_start_1",
+                            "loop_max_1",
+                            "loop_idx_1"
+                        ]
+                    },
+                    {
+                        "agent": "emit_part_by_index",
+                        "params": {
+                            "parts": "$chapters",
+                            "index": "$loop_idx_1"
+                        },
+                        "output": [
+                            "scatter_part"
+                        ]
+                    },
+                    {
+                        "agent": "story_chapter_outline_prompt",
+                        "params": {
+                            "topic": "$topic",
+                            "genre": "$genre",
+                            "characters": "$story_characters",
+                            "current_chapter_summary": "$scatter_part"
+                        },
+                        "output": [
+                            "story_chapter_outline_template"
+                        ]
+                    },
+                    {
+                        "agent": "groq_text_completion",
+                        "params": {
+                            "groq_request": "$story_chapter_outline_template",
+                            "groq_model": "Llama3-70b-8192",
+                            "groq_api_key": "ENV_groq_api_key",
+                            "max_tokens": 8000
+                        },
+                        "output": [
+                            "chapter_outline_json_with_cruft"
+                        ]
+                    },
+                    {
+                        "agent": "extract_json",
+                        "params": {
+                            "data": "$chapter_outline_json_with_cruft"
+                        },
+                        "output": [
+                            "json_chapter_outline"
+                        ]
+                    },
+                    {
+                        "agent": "get_length_of_list",
+                        "params": {
+                            "list_input": "$json_chapter_outline"
+                        },
+                        "output": [
+                            "scene_count"
+                        ]
+                    },
+                    {
+                        "agent": "echo",
+                        "params": {
+                            "input": "$scatter_part"
+                        },
+                        "output": [
+                            "chapter"
+                        ]
+                    },
+
+                        {
+                            "agent": "loop_start",
+                            "params": {
+                                "step_index": "$step_index",
+                                "loop_max": "$scene_count"
+                            },
+                            "output": [
+                                "loop_start_2",
+                                "loop_max_2",
+                                "loop_idx_2"
+                            ]
+                        },
+                        {
+                            "agent": "emit_part_by_index",
+                            "params": {
+                                "parts": "$json_chapter_outline",
+                                "index": "$loop_idx_2"
+                            },
+                            "output": [
+                                "scatter_part"
+                            ]
+                        },
+                        {
+                            "agent": "append_text",
+                            "params": {
+                                "whole_text": "$chapter",
+                                "part_text": "$scatter_part"
+                            },
+                            "output": [
+                                "chapter"
+                            ]
+                        },
+                        {
+                            "agent": "chapter_scene_writer_template",
+                            "params": {
+                                "topic": "$topic",
+                                "genre": "$genre",
+                                "characters": "$story_characters",
+                                "current_scene": "$scatter_part"
+                            },
+                            "output": [
+                                "chapter_scene_template"
+                            ]
+                        },
+                        {
+                            "agent": "groq_text_completion",
+                            "params": {
+                                "groq_request": "$chapter_scene_template",
+                                "groq_model": "Llama3-8b-8192",
+                                "groq_api_key": "ENV_groq_api_key",
+                                "max_tokens": 8000
+                            },
+                            "output": [
+                                "chapter_scene"
+                            ]
+                        },
+                        {
+                            "agent": "append_text",
+                            "params": {
+                                "whole_text": "$chapter",
+                                "part_text": "$chapter_scene"
+                            },
+                            "output": [
+                                "chapter"
+                            ]
+                        },
+                        {
+                            "agent": "loop_end",
+                            "params": {
+                                "step_index": "$loop_start_2",
+                                "loop_max": "$loop_max_2",
+                                "loop_index": "$loop_idx_2"
+                            },
+                            "output": [
+                                "loop_idx_2"
+                            ]
+                        },
+                    {
+                        "agent": "collect_item_to_list",
+                        "params": {
+                            "item": "$chapter",
+                            "list_input": "$chapter_list"
+                        },
+                        "output": [
+                            "chapter_list"
+                        ]
+                    },
+                    {
+                        "agent": "loop_end",
+                        "params": {
+                            "step_index": "$loop_start_1",
+                            "loop_max": "$loop_max_1",
+                            "loop_index": "$loop_idx_1"
+                        },
+                        "output": [
+                            "loop_idx_1"
+                        ]
+                    }
+            ]
+        },
+        "extract_list_from_dict": {
+            "type": "proc",
+            "function": "extract_list_from_dict",
+            "function_def": "def extract_list_from_dict(data: dict, key: str, output: list) -> tuple[Dict, Dict]:\n    try:\n        if isinstance(data, dict) and key in data:\n            extracted_list = data[key]\n            if isinstance(extracted_list, list):\n                return {output[0]: extracted_list}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n            else:\n                return {}, {\"status\": {\"value\": 1, \"reason\": f\"Value for key '{key}' is not a list\"}}\n        else:\n            return {}, {\"status\": {\"value\": 1, \"reason\": f\"Input is not a dictionary or key '{key}' not found\"}}\n    except Exception as e:\n        return {}, {\"status\": {\"value\": 1, \"reason\": str(e)}}",
+            "inputs": ["data", "key"],
+            "outputs": ["extracted_list"],
+            "help": "Extracts a list from a dictionary given a specific key"
+        },
+        "extend_paragraphs_template": {
+            "type": "template",
+            "help": "Generates an image based on a text prompt using Stable Diffusion.",
+            "prompt": "Write exactly {paragraph_count} paragraphs. Add a paragraph to the following: {input_paragraphs}  If no story is provided, start a new story that has this topic: {topic}",
+            "inputs": [
+                "topic",
+                "input_paragraphs",
+                "paragraph_count"
+            ],
+            "outputs": [
+                "new paragraphs"
+            ],
+            "optional_inputs": []
+        },
+        "collect_item_to_list": {
+            "type": "proc",
+            "help": "Collect the outputs into a list, create a list with the item if list did not exist",
+            "function": "collect_item_to_list",
+            "function_def": "def collect_item_to_list(item: Any, list_input: Union[str, list], output: list) -> tuple[list, Dict]:\n\tstatus = {\"status\": {'value': 0, 'reason': 'Success'}}\n\tif isinstance(list_input, list):\n\t\tlist_input.append(item)\n\t\tcontent = { output[0]: list_input}\n\telse:\n\t\t# Create a new list and add the item to it\n\t\tcontent = { output[0]: [item]}\n\t\tstatus = {\"status\": {'value': 0, 'reason': 'Success, created new list with item'}}\n\treturn content, status\n",
+            "inputs": [
+                "item",
+                "list_input"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "list"
+            ]
+        },
+        "get_length_of_list": {
+            "type": "proc",
+            "help": "put the list in a json string or dict into the results",
+            "function": "get_length_of_list",
+            "function_def": "def get_length_of_list(list_input: any, output: list) -> tuple[Dict, Dict]:\n\tstatus = {\"status\": {'value': 0, 'reason': 'Success'}}\n\n\tif isinstance(list_input, list):\n\t\tlist_len = len(list_input)\n\telse:\n\t\tlist_len = -1\n\t\tstatus = {\"status\": {'value': 1, 'reason': 'Not a list'}}\n\n\treturn list_len, status\n",
+            "inputs": [
+                "list_input"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "list_count"
+            ]
+        },
+        "fix_bad_json": {
+            "type": "proc",
+            "help": "put the list in a json string or dict into the results",
+            "function": "fix_bad_json",
+            "function_def": "needs work",
+            "inputs": [
+                "data"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "fixed_json"
+            ]
+        },
+        "convert_json_to_results": {
+            "type": "proc",
+            "help": "put the list in a json string or dict into the results",
+            "function": "convert_json_to_results",
+            "function_def": "def convert_json_to_results(content: Union[str, dict], output: list) -> tuple[Dict, Dict]:\n\tstatus = {\"status\": {'value': 0, 'reason': 'Success'}}\n\n\tif isinstance(content, str):\n\t\ttry:\n\t\t\t# Try to convert the content string to a dictionary\n\t\t\tcontent = json.loads(content)\n\t\texcept json.JSONDecodeError:\n\t\t\t# If the conversion fails, set the content to an empty dict and update the status\n\t\t\tcontent = b''\n\t\t\tstatus = {\"status\": {'value': 1, 'reason': 'Failed to convert content to json'}}\n\n\treturn content, status\n",
+            "inputs": [
+                "content"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "parts"
+            ]
+        },
+        "google_search": {
+            "type": "workflow",
+            "help": "Do google search, analyze the results.",
+            "inputs": [
+                "request"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "response"
+            ],
+            "steps": [
+                {
+                    "agent": "build_url_request",
+                    "params": {
+                        "protocol": "https",
+                        "host": "www.googleapis.com",
+                        "endpoint": "customsearch/v1?q=",
+                        "request": "$request"
+                    },
+                    "output": [
+                        "url"
+                    ]
+                },
+                {
+                    "agent": "exec_api_call_get",
+                    "params": {
+                        "url": "https://www.googleapis.com/customsearch/v1?q=hello+world&cx=",
+                        "headers": "{\"Content-Type\": \"application/json\", \"Accept\": \"application/json\", \"User-Agent\": \"My Custom Search Client/1.0\", \"X-Goog-Api-Key\": \"\"}",
+                        "payload": ""
+                    },
+                    "output": [
+                        "response"
+                    ]
+                }
+            ]
+        },
+        "debug_print": {
+            "type": "proc",
+            "help": "place in workflow to show the output at a step.",
+            "function": "debug_print",
+            "function_def": "def needs work\n",
+            "inputs": [
+                "input"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "placeholder"
+            ]
+        },
+        "build_url_request": {
+            "type": "proc",
+            "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
+            "function": "build_url_request",
+            "function_def": "def needs work\n",
+            "inputs": [
+                "protocol",
+                "host",
+                "endpoint",
+                "request"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "url"
+            ]
+        },
+        "build_google_url_request": {
+            "type": "proc",
+            "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
+            "function": "build_url_request",
+            "function_def": "def needs work\n",
+            "inputs": [
+                "protocol",
+                "host",
+                "endpoint",
+                "request"
+            ],
+            "optional_inputs": ["country_code", "dateRestrict_d", "dateRestrict_w", "dateRestrict_m",
+                "dateRestrict_y", "exactTerms", "excludeTerms", "fileType", "geolocation", "imgColorType",
+                "imgDominantColor", "imgSize", "imgType", "linkSite", "language", "lowRange", "highRange",
+                "num", "orTerms", "rights", "safe", "searchType", "siteSearch", "sort",
+                "siteSearchFilterInclude", "siteSearchFilterExclude", "sort", "start" ],
+            "outputs": [
+                "url"
+            ]
+        },
+        "blank": {
+            "type": "template",
+            "help": "Generates an image based on a text prompt using Stable Diffusion.",
+            "prompt": "{prompt}",
+            "inputs": [
+                "prompt",
+                "steps",
+                "sampler_name"
+            ],
+            "outputs": [
+                "image"
+            ],
+            "optional_inputs": []
+        },
+        "echo": {
+            "type": "template",
+            "help": "echo input to output",
+            "prompt": "{input}",
+            "inputs": [
+                "input"
+            ],
+            "optional_inputs": [],
+            "outputs": [
+                "output"
+            ]
+        }
+    }
+}
