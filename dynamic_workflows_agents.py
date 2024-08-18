@@ -669,7 +669,7 @@ def setup_logging(verbose_level, log_server=None):
             logging.info(f"Remote logging enabled to {host}:{port}")
         except Exception as e:
             logging.error(f"Failed to set up remote logging: {e}")
-def create_temp_workflow(agent_name, agent_config, config):
+def create_temp_workflow(agent_name, agent_config, config, cli_args):
     logging.info(f"Creating temporary workflow agent for agent: {agent_name}")
     logging.debug(f"Agent config: {agent_config}")
 
@@ -682,6 +682,12 @@ def create_temp_workflow(agent_name, agent_config, config):
     temp_workflow['optional_inputs'] = agent_config.get('optional_inputs', [])
     temp_workflow['outputs'] = agent_config['outputs']
     temp_workflow['help'] = agent_config['help']
+    for opt_input in agent_config.get('optional_inputs', []):
+        if cli_args.get(opt_input) is not None:
+            # Add to workflow inputs
+            temp_workflow['inputs'].append(opt_input)
+            # Add to steps params
+            temp_workflow['steps'][0]['params'][opt_input] = f"${opt_input}"
     return temp_workflow
 def load_config(default_file_path: str) -> Dict[str, Any]:
     logging.info(f"Starting : {format}")
@@ -743,12 +749,6 @@ def config_app():
         print(f"Error: '{args.agent}' is not a valid agent.")
         sys.exit()
 
-    if not agent_config.get('type') in ['workflow']:
-        # If the agent has no steps, promote it to a temporary workflow
-        agent = create_temp_workflow(args.agent, agent_config, config)
-    else:
-        agent = agent_config
-
     parser = argparse.ArgumentParser(description=agent_config['help'])
     for input_name in agent_config['inputs']:
         parser.add_argument(f'--{input_name}', required=True, help=f'Value for {input_name}')
@@ -761,7 +761,16 @@ def config_app():
     
     args = parser.parse_args()
     setup_logging(args.verbose, args.log_server)
-    cli_args = vars(args)
+    
+    # Only add actual entries that appeared on the command line.
+    cli_args = {k: v for k, v in vars(args).items() if v is not None}
+
+    if not agent_config.get('type') in ['workflow']:
+        # If the agent has no steps, promote it to a temporary workflow
+        agent = create_temp_workflow(args.agent, agent_config, config, cli_args)
+    else:
+        agent = agent_config
+
     return agent, config, cli_args, args.agent
 def setup_depth_manager(config):
     global depth_manager

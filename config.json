@@ -2707,17 +2707,13 @@
             "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
             "function": "build_google_url_header_request",
             "function_def": "def needs work\n",
-            "inputs": [
-                "request","api_key", "cx"
-            ],
+            "inputs": [ "request","api_key", "cx" ],
             "optional_inputs": ["country_code", "dateRestrict_d", "dateRestrict_w", "dateRestrict_m",
                 "dateRestrict_y", "exactTerms", "excludeTerms", "fileType", "geolocation", "imgColorType",
                 "imgDominantColor", "imgSize", "imgType", "linkSite", "language", "lowRange", "highRange",
                 "num", "orTerms", "rights", "safe", "searchType", "siteSearch", "sort",
                 "siteSearchFilterInclude", "siteSearchFilterExclude", "start" ],
-            "outputs": [
-                "url", "header"
-            ]
+            "outputs": [ "url", "headers" ]
         }
 
 
