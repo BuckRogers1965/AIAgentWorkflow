@@ -20,7 +20,6 @@ import time
 
 ''' ==== ==== Proc testing section === === '''
 
-
 def get_length_of_list(list_input: any, output: list) -> tuple[Dict, Dict]:
     status = {"status": {'value': 0, 'reason': 'Success'}}
     
@@ -207,11 +206,55 @@ def build_url_request(protocol:str, host:str, endpoint: str, request: str, outpu
     fixed_request= urllib.parse.quote_plus(request)
     return f"{protocol}://{host}/{endpoint}{fixed_request}", {"status": {"value": 0, "reason": "Success"}}
 
+
+#        "build_google_url_header_request": {
+#            "type": "proc",
+#            "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
+#            "function": "build_url_request",
+#            "function_def": "def needs work\n",
+#            "inputs": [
+#                "protocol", "host", "endpoint", "request","api_key", "cx"
+#            ],
+#            "optional_inputs": ["country_code", "dateRestrict_d", "dateRestrict_w", "dateRestrict_m",
+#                "dateRestrict_y", "exactTerms", "excludeTerms", "fileType", "geolocation", "imgColorType",
+#                "imgDominantColor", "imgSize", "imgType", "linkSite", "language", "lowRange", "highRange",
+#                "num", "orTerms", "rights", "safe", "searchType", "siteSearch", "sort",
+#                "siteSearchFilterInclude", "siteSearchFilterExclude", "sort", "start" ],
+#            "outputs": [
+#                "url", "headers"
+#            ]
+#        }
+
+
 import urllib.parse
-def build_google_url_request(protocol:str, host:str, endpoint: str, request: str, output:list)->str: 
+import inspect
+def build_google_url_header_request (request: str, api_key:str, cx: str, output:list,
+    country_code: str = "", dateRestrict_d: str = "", dateRestrict_w: str = "", dateRestrict_m: str = "",
+    dateRestrict_y: str = "", exactTerms: str = "", excludeTerms: str = "", fileType: str = "", geolocation: str = "",
+    imgColorType: str = "",imgDominantColor: str = "", imgSize: str = "", imgType: str = "", linkSite: str = "", 
+    language: str = "", lowRange: str = "", highRange: str = "", num: str = "", orTerms: str = "", rights: str = "",
+    safe: str = "", searchType: str = "", siteSearch: str = "", sort: str = "", siteSearchFilterInclude: str = "",
+    siteSearchFilterExclude: str = "", start: str = "") -> tuple[Dict, Dict]:
+
+    headers = (f"{{\"Content-Type\": \"application/json\", \"Accept\": \"application/json\", "
+          f"\"User-Agent\": \"My Custom Search Client/1.0\", \"X-Goog-Api-Key\": \"{api_key}\"}}")
+
+    fixed_request= urllib.parse.quote(request)
+
     # f"https://www.googleapis.com/customsearch/v1?q={query}"
-    fixed_request= urllib.parse.quote_plus(request)
-    return f"{protocol}://{host}/{endpoint}{fixed_request}", {"status": {"value": 0, "reason": "Success"}}
+    url = f"https://www.googleapis.com/customsearch/v1?q={fixed_request}&cx={cx}"
+
+    all_params = build_google_url_header_request.__code__.co_varnames[:build_google_url_header_request.__code__.co_argcount]
+    num_required = build_google_url_header_request.__code__.co_argcount - len(build_google_url_header_request.__defaults__)
+    optional_params = all_params[num_required:]
+
+    # Add optional parameters to URL if they're not empty
+    for param in optional_params:
+        value = locals()[param]
+        if value != "":
+            url += f"&{param}={urllib.parse.quote(str(value))}"  
+
+    return { "url": url, "headers": headers } , {"status": {"value": 0, "reason": "Success"}}
 
 '''     ==== ==== Proc section === ===     '''
 import os
@@ -239,7 +282,7 @@ def needs_updated(params):
 def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_def: str) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
     spacing = depth_manager.get_spacing()
     logging.info("%sStarting %s" % (spacing, function_name))
-    #logging.debug("%s******** \n step_params%s" % (spacing, step_params))
+    logging.debug("%s******** \n step_params%s" % (spacing, step_params))
     
     result = b''  # Initialize result as empty bytes
     status = {"status": {"value": 1, "reason": "Function execution not attempted"}}
@@ -485,74 +528,8 @@ def format_time_interval(elapsed_time):
         formatted_time = f"{elapsed_time * 1000:.4f} milliseconds"
     else:  # microseconds
         formatted_time = f"{elapsed_time * 1000000:.4f} microseconds"
-    return formatted_time
-    spacing = depth_manager.get_spacing()
-    logging.info(f"{spacing}Starting workflow validation")
-    errors = []
-    warnings = []
-    
-    outputs = set()
-    outputs.update(["step_index", "status"])
-    defined_params = set(workflow.get('inputs', []) + workflow.get('optional_inputs', []))
+        return formatted_time
 
-    for i, step in enumerate(workflow['steps']):
-        agent_name = step['agent']
-        
-        if agent_name not in config['agents']:
-            errors.append(f"{spacing}Step {i+1}: Agent '{agent_name}' is not defined in the configuration.")
-            continue
-
-        agent_config = config['agents'][agent_name]
-        
-        for required_input in agent_config.get('inputs', []):
-            if not any(required_input == param.strip() for param in step['params']):
-                errors.append(f"{spacing}Step {i+1} ({agent_name}): Required input '{required_input}' is missing.")
-
-        for input_param, value in step['params'].items():
-            input_param = input_param.strip()
-            if input_param not in agent_config.get('inputs', []) + agent_config.get('optional_inputs', []):
-                warnings.append(f"{spacing}Step {i+1} ({agent_name}): Input '{input_param}' is not defined in the agent configuration.")
-            
-            if isinstance(value, str) and value.startswith('$'):
-                param_name = value[1:]
-                if param_name not in defined_params and param_name not in outputs:
-                    warnings.append(f"{spacing}Step {i+1} ({agent_name}): Input '{input_param}' uses '{value}' which is not an output from any previous step or a defined input.")
-
-        if 'output' not in step:
-            errors.append(f"Step {i+1} ({agent_name}): Missing 'output' definition.")
-        else:
-            step_outputs = step['output'] if isinstance(step['output'], list) else [step['output']]
-            outputs.update(step_outputs)
-
-        agent_type = agent_config.get('type')
-        if agent_type not in ['template', 'proc', 'workflow', 'step']:
-            errors.append(f"Step {i+1} ({agent_name}): Invalid agent type '{agent_type}'.")
-
-        if agent_type == 'template' and 'prompt' not in agent_config:
-            errors.append(f"Step {i+1} ({agent_name}): Template agent missing 'prompt' definition.")
-        elif agent_type == 'proc' and ('function' not in agent_config or 'function_def' not in agent_config):
-            errors.append(f"Step {i+1} ({agent_name}): Proc agent missing 'function' or 'function_def'.")
-        elif agent_type == 'workflow':
-            # For nested workflows, we consider the step's output as valid
-            nested_outputs = step_outputs
-            for output in nested_outputs:
-                if output not in outputs:
-                    outputs.add(output)
-
-    for output in workflow.get('outputs', []):
-        if output not in outputs:
-            errors.append(f"Workflow output '{output}' is not produced by any step.")
-
-    if errors:
-        for error in errors:
-            logging.error(error)
-        raise ValueError("Workflow validation failed. Please check the errors above.")
-
-    if warnings:
-        for warning in warnings:
-            logging.warning(warning)
-
-    logging.info(f"{spacing}Workflow validation completed successfully.")
 def validate_workflow(workflow: Dict[str, Any], config: Dict[str, Any]):
     spacing = depth_manager.get_spacing()
     logging.info(f"{spacing}Starting workflow validation")

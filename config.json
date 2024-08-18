@@ -2600,22 +2600,23 @@
             ],
             "steps": [
                 {
-                    "agent": "build_url_request",
+                    "agent": "build_google_url_header_request",
                     "params": {
-                        "protocol": "https",
-                        "host": "www.googleapis.com",
-                        "endpoint": "customsearch/v1?q=",
-                        "request": "$request"
+                        "request": "$request",
+                        "api_key": "ENV_google_custom_search_api_key", 
+                        "cx":      "ENV_google_cx",
+                        "num":     "5"
                     },
                     "output": [
-                        "url"
+                        "url",
+                        "headers"
                     ]
                 },
                 {
                     "agent": "exec_api_call_get",
                     "params": {
-                        "url": "https://www.googleapis.com/customsearch/v1?q=hello+world&cx=",
-                        "headers": "{\"Content-Type\": \"application/json\", \"Accept\": \"application/json\", \"User-Agent\": \"My Custom Search Client/1.0\", \"X-Goog-Api-Key\": \"\"}",
+                        "url":     "$url",
+                        "headers": "$headers",
                         "payload": ""
                     },
                     "output": [
@@ -2698,6 +2699,27 @@
             "outputs": [
                 "output"
             ]
+        },
+
+
+        "build_google_url_header_request": {
+            "type": "proc",
+            "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
+            "function": "build_google_url_header_request",
+            "function_def": "def needs work\n",
+            "inputs": [
+                "request","api_key", "cx"
+            ],
+            "optional_inputs": ["country_code", "dateRestrict_d", "dateRestrict_w", "dateRestrict_m",
+                "dateRestrict_y", "exactTerms", "excludeTerms", "fileType", "geolocation", "imgColorType",
+                "imgDominantColor", "imgSize", "imgType", "linkSite", "language", "lowRange", "highRange",
+                "num", "orTerms", "rights", "safe", "searchType", "siteSearch", "sort",
+                "siteSearchFilterInclude", "siteSearchFilterExclude", "start" ],
+            "outputs": [
+                "url", "header"
+            ]
         }
+
+
     }
 }
