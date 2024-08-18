@@ -528,7 +528,7 @@ def format_time_interval(elapsed_time):
         formatted_time = f"{elapsed_time * 1000:.4f} milliseconds"
     else:  # microseconds
         formatted_time = f"{elapsed_time * 1000000:.4f} microseconds"
-        return formatted_time
+    return formatted_time
 
 def validate_workflow(workflow: Dict[str, Any], config: Dict[str, Any]):
     spacing = depth_manager.get_spacing()
@@ -761,7 +761,7 @@ def config_app():
     
     args = parser.parse_args()
     setup_logging(args.verbose, args.log_server)
-    
+
     # Only add actual entries that appeared on the command line.
     cli_args = {k: v for k, v in vars(args).items() if v is not None}
 
