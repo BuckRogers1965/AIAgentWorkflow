@@ -20,6 +20,33 @@ import time
 
 ''' ==== ==== Proc testing section === === '''
 
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
+import textwrap
+def rag_annotate(prompt:str, path:str, output: list, k:int =5)-> tuple[str, Dict]:
+    # Check if data is already loaded
+
+    k = int(k) 
+    if not hasattr(rag_annotate, 'index'):
+        # Load data for the first time
+        rag_annotate.index = faiss.read_index(f"{path}/rag_index.faiss")
+        rag_annotate.document_chunks = np.load(f"{path}/document_chunks.npy", allow_pickle=True)
+        rag_annotate.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+
+    # Use the loaded data
+    prompt_embedding = rag_annotate.embedder.encode([prompt])
+    _, I = rag_annotate.index.search(prompt_embedding, k)
+    retrieved_chunks = [rag_annotate.document_chunks[i] for i in I[0]]
+    context = "\n".join(retrieved_chunks)
+    
+    return (f"Context:\n{context}\n\nQuestion: {prompt}\nAnswer:", {"status": {"value": 0, "reason": "Success"}})
+    # Usage
+    #original_prompt = "What is the capital of France?"
+    #rag_enhanced_prompt = rag_annotate(original_prompt)
+    # Now you can send rag_enhanced_prompt to your LLM
+    # llm_response = your_llm_function(rag_enhanced_prompt)
+
 def get_length_of_list(list_input: any, output: list) -> tuple[Dict, Dict]:
     status = {"status": {'value': 0, 'reason': 'Success'}}
     

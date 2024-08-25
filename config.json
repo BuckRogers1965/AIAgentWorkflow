@@ -2714,8 +2714,17 @@
                 "num", "orTerms", "rights", "safe", "searchType", "siteSearch", "sort",
                 "siteSearchFilterInclude", "siteSearchFilterExclude", "start" ],
             "outputs": [ "url", "headers" ]
+        },
+        
+        "rag_annotate": {
+            "type": "proc",
+            "help": "upgrade an llm prompt with RAG upgrades",
+            "function": "rag_annotate",
+            "function_def": "def needs work\n",
+            "inputs": [ "prompt","path" ],
+            "optional_inputs": ["k" ],
+            "outputs": [ "rag_enhanced_prompt" ]
         }
-
 
     }
 }
