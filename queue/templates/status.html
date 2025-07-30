@@ -1,0 +1,64 @@
+<!-- templates/status.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Queue Status</title>
+    <meta http-equiv="refresh" content="60">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 1em; background-color: #f4f4f9; color: #333; }
+        h1, h2 { color: #1a1a1a; }
+        h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-top: 2em; }
+        .job-list { list-style-type: none; padding-left: 0; }
+        .job {
+            border: 1px solid #ddd;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .job ul { padding-left: 20px; margin: 5px 0 0 0; }
+        .job li { padding: 2px 0; }
+        .job-id { font-family: monospace; font-size: 0.9em; color: #555; }
+        .job-key { font-weight: 600; }
+    </style>
+</head>
+<body>
+    <h1>Job Queue Status</h1>
+    <p><b>Last updated:</b> {{ now }}</p>
+    <p><i>Page auto-refreshes every minute.</i></p>
+
+    <!-- Renders a list of jobs in a readable format -->
+    {% macro render_job_list(jobs) %}
+        <ul class="job-list">
+            {% for job in jobs %}
+                <li class="job">
+                    <span class="job-key">Workflow:</span> {{ job.workflow }} <br>
+                    <span class="job-id">(ID: {{ job.id }})</span>
+                    <ul>
+                        {% for key, value in job.items() %}
+                            {% if key not in ['id', 'workflow'] %}
+                                <li><span class="job-key">{{ key }}:</span> {{ value }}</li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% else %}
+                <li>No jobs in this category.</li>
+            {% endfor %}
+        </ul>
+    {% endmacro %}
+
+    <h2>Running Jobs ({{ running_jobs|length }})</h2>
+    {{ render_job_list(running_jobs) }}
+
+    <h2>Pending Jobs ({{ pending_jobs|length }})</h2>
+    {{ render_job_list(pending_jobs) }}
+
+    <h2>Completed Jobs ({{ completed_jobs|length }})</h2>
+    {{ render_job_list(completed_jobs) }}
+    
+    <h2>Failed Jobs ({{ failed_jobs|length }})</h2>
+    {{ render_job_list(failed_jobs) }}
+</body>
+</html>

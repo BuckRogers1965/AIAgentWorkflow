@@ -1,0 +1,26 @@
+[
+  {
+    "id": "generate_hourly_report",
+    "enabled": true,
+    "workflow": "Hourly_Report_Workflow",
+    "trigger": {
+      "type": "cron",
+      "value": "0 * * * *" 
+    },
+    "retry_count": 2,
+    "initial_tape": {
+      "report_type": "hourly",
+      "destination": "/reports/hourly/"
+    }
+  },
+  {
+    "id": "nightly_cleanup",
+    "enabled": true,
+    "workflow": "Cleanup_Workflow",
+    "trigger": {
+      "type": "cron",
+      "value": "0 2 * * *" 
+    },
+    "retry_count": 0
+  }
+]

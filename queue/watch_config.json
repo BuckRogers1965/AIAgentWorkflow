@@ -1,0 +1,28 @@
+[
+  {
+    "id": "pdf_ingest_watcher",
+    "enabled": true,
+    "path": "./watched_pdfs",
+    "pattern": "*.pdf",
+    "check_interval_seconds": 10,
+    "workflow": "Ingest_And_File_PDF.json",
+    "retry_count": 3
+  },
+  {
+    "id": "csv_processing_watcher",
+    "enabled": true,
+    "path": "./watched_csvs",
+    "pattern": "*.csv",
+    "check_interval_seconds": 30,
+    "workflow": "Process_Sales_CSV.json",
+    "retry_count": 1
+  },
+  {
+    "id": "disabled_watcher_example",
+    "enabled": false,
+    "path": "./watched_images",
+    "pattern": "*.jpg",
+    "check_interval_seconds": 60,
+    "workflow": "Analyze_Image.json"
+  }
+]
