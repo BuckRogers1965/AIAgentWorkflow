@@ -1,7 +1,3 @@
-Of course. Here is a technical specification for the "Head Agent" pattern, detailing how design-time rules embedded within agent definitions can drive a generic GUI editor.
-
----
-
 ### **Technical Specification: Agent-Driven GUI Constructs**
 
 #### **1. Overview**
