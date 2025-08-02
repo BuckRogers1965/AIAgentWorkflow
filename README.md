@@ -1,6 +1,8 @@
 # AIAgentWorkflow
 A python based AI Agent Workflow system that is dynamic and highly configurable. 
 
+Just added a GUI to edit the config file called "config_editor.py."
+
 This project started after I installed the Ollama AI program and put a workflow on my local network.  I downloaded a shell based example that used curl to ask the ai api "Why is the sky blue."  This quickly turned into a python program that created agents by filling out templates using inputs from either variables I set, or the output from other agents. 
 
 I noticed that I was duplicating a lot of code to generate these requests as I let the data pass through all the agents one after the other.  So I set out to fix that. I wrote a program to duplicate the simple python program in a more robust and flexible way that was ran from a config file. So now I could keep the program the same and configure the inputs and outputs using a simple configuration file. 

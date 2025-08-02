@@ -30,27 +30,91 @@ class CTkCodeEditor(ctk.CTkFrame):
         for token, color in self.tag_colors.items(): self.textbox.tag_config(str(token), foreground=color)
         
         self.textbox.bind("<KeyRelease>", self.on_key_release); self.textbox.bind("<Return>", self.on_return); self.textbox.bind("<Configure>", lambda e: self.update_line_numbers())
+        # Bind mouse wheel events to prevent propagation to parent
+        self.textbox.bind("<MouseWheel>", self.on_mouse_wheel)
+        self.textbox.bind("<Button-4>", self.on_mouse_wheel)  # Linux scroll up
+        self.textbox.bind("<Button-5>", self.on_mouse_wheel)  # Linux scroll down
+        self.textbox._textbox.bind("<MouseWheel>", self.on_mouse_wheel)
+        self.textbox._textbox.bind("<Button-4>", self.on_mouse_wheel)
+        self.textbox._textbox.bind("<Button-5>", self.on_mouse_wheel)
+        
         self.textbox._textbox.configure(yscrollcommand=self.sync_scroll); self.line_numbers._textbox.configure(yscrollcommand=self.sync_scroll)
+    
+    def on_mouse_wheel(self, event):
+        # Handle mouse wheel scrolling within the code editor
+        # Calculate scroll direction and make it scroll faster
+        if event.delta:
+            # Windows/Mac mouse wheel - negative delta means scroll up, scroll 2x faster
+            delta = -2 if event.delta > 0 else 2
+        else:
+            # Linux mouse wheel (Button-4 = scroll up, Button-5 = scroll down), 2x faster
+            delta = -2 if event.num == 4 else 2
+        
+        # Scroll the textbox
+        self.textbox._textbox.yview_scroll(delta, "units")
+        # Sync line numbers
+        self.line_numbers._textbox.yview_moveto(self.textbox._textbox.yview()[0])
+        
+        return "break"  # Prevent event propagation
     
     def sync_scroll(self, *args): self.textbox._textbox.yview_moveto(args[0]); self.line_numbers._textbox.yview_moveto(args[0]); return "break"
     def on_return(self, event): self.textbox.insert(ctk.INSERT, "\n"); self.update_syntax_highlighting(); return "break"
-    def on_key_release(self, event=None): self.update_syntax_highlighting()
+    def on_key_release(self, event=None): 
+        # Preserve cursor position and scroll during syntax highlighting
+        cursor_pos = self.textbox.index(ctk.INSERT)
+        view_pos = self.textbox._textbox.yview()
+        line_numbers_view = self.line_numbers._textbox.yview()
+        
+        self.update_syntax_highlighting()
+        
+        # Restore positions after highlighting
+        self.textbox.mark_set(ctk.INSERT, cursor_pos)
+        self.textbox._textbox.yview_moveto(view_pos[0])
+        self.line_numbers._textbox.yview_moveto(line_numbers_view[0])
+        
     def update_line_numbers(self):
-        self.line_numbers.configure(state="normal"); self.line_numbers.delete("1.0", "end")
-        line_count = int(self.textbox.index("end-1c").split('.')[0]); line_numbers_string = "\n".join(str(i) for i in range(1, line_count + 1))
-        self.line_numbers.insert("1.0", line_numbers_string); self.line_numbers.configure(state="disabled")
+        # Preserve scroll position when updating line numbers
+        current_view = self.line_numbers._textbox.yview()
+        
+        self.line_numbers.configure(state="normal")
+        self.line_numbers.delete("1.0", "end")
+        line_count = int(self.textbox.index("end-1c").split('.')[0])
+        line_numbers_string = "\n".join(str(i) for i in range(1, line_count + 1))
+        self.line_numbers.insert("1.0", line_numbers_string)
+        self.line_numbers.configure(state="disabled")
+        
+        # Restore scroll position
+        self.line_numbers._textbox.yview_moveto(current_view[0])
+        
     def update_syntax_highlighting(self, event=None):
-        for tag in self.tag_colors.keys(): self.textbox.tag_remove(str(tag), "1.0", "end")
+        # Store current positions before highlighting
+        cursor_pos = self.textbox.index(ctk.INSERT)
+        textbox_view = self.textbox._textbox.yview()
+        
+        for tag in self.tag_colors.keys(): 
+            self.textbox.tag_remove(str(tag), "1.0", "end")
+            
         text = self.textbox.get("1.0", "end-1c")
-        if not text: self.update_line_numbers(); return
+        if not text: 
+            self.update_line_numbers()
+            return
+            
         start_pos = "1.0"
         for token, content in lex(text, self.language_lexer):
             end_pos = f"{start_pos}+{len(content)}c"
             base_token = token
-            while base_token not in self.tag_colors and base_token.parent: base_token = base_token.parent
-            if base_token in self.tag_colors: self.textbox.tag_add(str(base_token), start_pos, end_pos)
+            while base_token not in self.tag_colors and base_token.parent: 
+                base_token = base_token.parent
+            if base_token in self.tag_colors: 
+                self.textbox.tag_add(str(base_token), start_pos, end_pos)
             start_pos = end_pos
+            
         self.update_line_numbers()
+        
+        # Restore positions after highlighting and line number update
+        self.textbox.mark_set(ctk.INSERT, cursor_pos)
+        self.textbox._textbox.yview_moveto(textbox_view[0])
+        
     def insert(self, index, text): self.textbox.insert(index, text); self.update_syntax_highlighting()
     def get(self, start, end): return self.textbox.get(start, end)
 
@@ -134,7 +198,11 @@ class ProcEditorFrame(BaseEditorFrame):
         ctk.CTkLabel(self, text="Function Name").pack(anchor="w", padx=5, pady=(10,0))
         self.func_name_entry = ctk.CTkEntry(self); self.func_name_entry.insert(0, self.data.get("function", "")); self.func_name_entry.pack(fill="x", padx=5, pady=5)
         ctk.CTkLabel(self, text="Function Definition").pack(anchor="w", padx=5, pady=(10,0))
-        self.func_def_text = CTkCodeEditor(self, height=300); self.func_def_text.insert("1.0", self.data.get("function_def", "")); self.func_def_text.pack(fill="both", expand=True, padx=5, pady=5)
+        # Create the code editor with explicit height
+        self.func_def_text = CTkCodeEditor(self)
+        self.func_def_text.insert("1.0", self.data.get("function_def", ""))
+        # Pack with specific height using pady to force more space
+        self.func_def_text.pack(fill="both", expand=True, padx=5, pady=5, ipady=200)
     def get_data(self):
         self.data['help'] = self.help_text.get("1.0", "end-1c").strip()
         self.data['inputs'] = self.inputs_frame.get_data(); self.data['optional_inputs'] = self.optionals_frame.get_data(); self.data['outputs'] = self.outputs_frame.get_data()
@@ -162,11 +230,84 @@ class JsonEditorFrame(BaseEditorFrame):
         try: return json.loads(self.textbox.get("1.0", "end-1c"))
         except json.JSONDecodeError as e: messagebox.showerror("JSON Error", f"Invalid JSON: {e}"); return None
 
+# --- Global Config Editor Modal ---
+class GlobalConfigEditorModal(ctk.CTkToplevel):
+    def __init__(self, parent, config_manager):
+        super().__init__(parent)
+        self.title("Global Configuration Editor")
+        self.geometry("800x600")
+        self.config_manager = config_manager
+        self.saved = False
+        
+        # Get all config data except agents
+        self.config_data = copy.deepcopy(config_manager.config)
+        if "agents" in self.config_data:
+            del self.config_data["agents"]
+            
+        self.create_widgets()
+        self.transient(parent)
+        self.grab_set()
+        
+    def create_widgets(self):
+        # Main content area
+        content_frame = ctk.CTkFrame(self)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        ctk.CTkLabel(content_frame, text="Global Configuration (JSON)", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0, 10))
+        
+        # Warning label
+        warning_label = ctk.CTkLabel(content_frame, 
+                                   text="⚠️ Warning: This editor modifies all configuration except agents. Edit carefully!",
+                                   text_color="orange")
+        warning_label.pack(pady=(0, 10))
+        
+        # JSON text editor
+        self.json_textbox = ctk.CTkTextbox(content_frame, font=("monospace", 12))
+        self.json_textbox.pack(fill="both", expand=True, padx=5, pady=5)
+        self.json_textbox.insert("1.0", json.dumps(self.config_data, indent=2))
+        
+        # Button frame
+        button_frame = ctk.CTkFrame(self)
+        button_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkButton(button_frame, text="Cancel", command=self.cancel).pack(side="left", padx=10)
+        ctk.CTkButton(button_frame, text="Save Configuration", 
+                     command=self.save, fg_color="green").pack(side="right", padx=10)
+        
+    def save(self):
+        try:
+            # Parse the JSON
+            new_config = json.loads(self.json_textbox.get("1.0", "end-1c"))
+            
+            # Ensure agents key is not in the new config
+            if "agents" in new_config:
+                messagebox.showerror("Error", "Cannot modify 'agents' key through this editor!")
+                return
+                
+            # Update config manager with new data (preserving agents)
+            agents_backup = self.config_manager.config.get("agents", {})
+            self.config_manager.config = new_config
+            self.config_manager.config["agents"] = agents_backup
+            
+            self.saved = True
+            self.destroy()
+            
+        except json.JSONDecodeError as e:
+            messagebox.showerror("JSON Error", f"Invalid JSON: {e}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save configuration: {e}")
+            
+    def cancel(self):
+        self.saved = False
+        self.destroy()
+
 # --- Main Application Window ---
 class App(ctk.CTk):
     def __init__(self):
         super().__init__(); self.title("Agent Workflow Editor"); self.geometry("1400x800")
         self.config = ConfigManager(); self.current_agent_name = None; self.editor_frame_instance = None
+        self.search_text = ctk.StringVar(); self.search_text.trace("w", self.on_search_changed)
         self.grid_columnconfigure(0, weight=0); self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.create_agent_list_panel(); self.create_editor_panel(); self.create_modal_overlay(); self.refresh_agent_list(); self.show_welcome_message()
@@ -174,10 +315,30 @@ class App(ctk.CTk):
     def create_agent_list_panel(self):
         self.agent_list_frame = ctk.CTkFrame(self, width=320); self.agent_list_frame.grid(row=0, column=0, rowspan=2, padx=10, pady=10, sticky="ns")
         self.agent_list_frame.grid_propagate(False)
-        self.agent_list_frame.grid_rowconfigure(2, weight=1); self.agent_list_frame.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(self.agent_list_frame, text="Agents", font=ctk.CTkFont(size=20, weight="bold")).grid(row=0, column=0, padx=20, pady=(20, 10), sticky="w")
-        add_menu = ctk.CTkOptionMenu(self.agent_list_frame, values=["Workflow", "Proc", "Template"], command=self.add_new_agent); add_menu.grid(row=1, column=0, padx=20, pady=10, sticky="ew"); add_menu.set("Create New Agent...")
-        self.agent_scroll_frame = ctk.CTkScrollableFrame(self.agent_list_frame, label_text="Existing Agents"); self.agent_scroll_frame.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
+        self.agent_list_frame.grid_rowconfigure(4, weight=1); self.agent_list_frame.grid_columnconfigure(0, weight=1)
+        
+        # Header with config button
+        header_frame = ctk.CTkFrame(self.agent_list_frame, fg_color="transparent")
+        header_frame.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
+        header_frame.grid_columnconfigure(0, weight=1)
+        
+        ctk.CTkLabel(header_frame, text="Agents", font=ctk.CTkFont(size=20, weight="bold")).grid(row=0, column=0, sticky="w")
+        config_btn = ctk.CTkButton(header_frame, text="⚙️", width=30, command=self.open_global_config)
+        config_btn.grid(row=0, column=1, padx=(10, 0))
+        
+        # Search box
+        ctk.CTkLabel(self.agent_list_frame, text="Search:").grid(row=1, column=0, padx=20, pady=(0, 5), sticky="w")
+        self.search_entry = ctk.CTkEntry(self.agent_list_frame, textvariable=self.search_text, placeholder_text="Filter agents...")
+        self.search_entry.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="ew")
+        
+        # Create new agent dropdown
+        add_menu = ctk.CTkOptionMenu(self.agent_list_frame, values=["Workflow", "Proc", "Template"], command=self.add_new_agent)
+        add_menu.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
+        add_menu.set("Create New Agent...")
+        
+        # Scrollable agent list
+        self.agent_scroll_frame = ctk.CTkScrollableFrame(self.agent_list_frame, label_text="Existing Agents")
+        self.agent_scroll_frame.grid(row=4, column=0, padx=10, pady=10, sticky="nsew")
 
     def create_editor_panel(self):
         self.editor_container = ctk.CTkFrame(self); self.editor_container.grid(row=0, column=1, padx=10, pady=(10,0), sticky="nsew")
@@ -199,13 +360,29 @@ class App(ctk.CTk):
     def hide_overlay(self):
         self.overlay.place_forget()
 
+    def on_search_changed(self, *args):
+        self.refresh_agent_list()
+
     def refresh_agent_list(self):
-        for widget in self.agent_scroll_frame.winfo_children(): widget.destroy()
+        for widget in self.agent_scroll_frame.winfo_children(): 
+            widget.destroy()
+            
+        search_term = self.search_text.get().lower()
+        
         for name in self.config.get_agent_names():
-            agent_type = self.config.get_agent_data(name).get("type", "json"); prefix = {"workflow": "W", "proc": "P", "template": "T"}.get(agent_type, "J")
-            row = ctk.CTkFrame(self.agent_scroll_frame, fg_color="transparent"); row.pack(fill="x", padx=2, pady=2)
-            del_btn = ctk.CTkButton(row, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", command=lambda n=name: self.delete_agent(agent_name=n, confirm=True)); del_btn.pack(side="right")
-            btn = ctk.CTkButton(row, text=f"[{prefix}] {name}", command=lambda n=name: self.on_agent_list_click(n), anchor="w"); btn.pack(side="left", fill="x", expand=True)
+            # Filter based on search term
+            if search_term and search_term not in name.lower():
+                continue
+                
+            agent_type = self.config.get_agent_data(name).get("type", "json")
+            prefix = {"workflow": "W", "proc": "P", "template": "T"}.get(agent_type, "J")
+            row = ctk.CTkFrame(self.agent_scroll_frame, fg_color="transparent")
+            row.pack(fill="x", padx=2, pady=2)
+            del_btn = ctk.CTkButton(row, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", 
+                                  command=lambda n=name: self.delete_agent(agent_name=n, confirm=True))
+            del_btn.pack(side="right")
+            btn = ctk.CTkButton(row, text=f"[{prefix}] {name}", command=lambda n=name: self.on_agent_list_click(n), anchor="w")
+            btn.pack(side="left", fill="x", expand=True)
             
     def on_agent_list_click(self, agent_name):
         if self.editor_frame_instance and isinstance(self.editor_frame_instance, WorkflowEditorFrame):
@@ -234,6 +411,11 @@ class App(ctk.CTk):
         self.name_entry = ctk.CTkEntry(name_frame, font=ctk.CTkFont(size=16)); self.name_entry.insert(0, self.current_agent_name)
         self.name_entry.pack(side="left", fill="x", expand=True, padx=10, pady=10)
         editor_class = {"workflow": WorkflowEditorFrame, "proc": ProcEditorFrame, "template": TemplateEditorFrame}.get(agent_data.get("type"), JsonEditorFrame)
+        
+        # For proc editors, give them more height by setting a minimum height on the container
+        if agent_data.get("type") == "proc":
+            self.editor_container.configure(height=900)
+        
         self.editor_frame_instance = editor_class(self.editor_container, agent_data, self); self.editor_frame_instance.pack(fill="both", expand=True, padx=10, pady=(0,10))
 
     def save_agent(self):
@@ -257,6 +439,13 @@ class App(ctk.CTk):
         if confirm and not messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{name_to_delete}'? This cannot be undone."): return
         self.config.delete_agent(name_to_delete); self.config.save(); self.refresh_agent_list()
         if name_to_delete == self.current_agent_name: self.show_welcome_message()
+
+    def open_global_config(self):
+        modal = GlobalConfigEditorModal(self, self.config)
+        self.wait_window(modal)
+        if modal.saved:
+            self.config.save()
+            self.show_toast("Global configuration saved successfully!")
 
     def open_step_editor(self, index):
         if not isinstance(self.editor_frame_instance, WorkflowEditorFrame): return
