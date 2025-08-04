@@ -322,7 +322,7 @@
       ]
     },
     "citation_agent": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text"
       ],
@@ -348,7 +348,7 @@
       ]
     },
     "conclusion_agent": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text",
         "thesis"
@@ -376,7 +376,7 @@
       ]
     },
     "counterargument_agent": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text",
         "topic",
@@ -1326,7 +1326,7 @@
       ]
     },
     "idiomatic_remover": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text"
       ],
@@ -1413,7 +1413,7 @@
       "prompt": "As a stable diffusion master prompt writer, I create a long highly detailed and nuanced prompt to elicit the perfect artwork from stable diffusion models. I follow the following creative points, A specific and detailed description of what you want to create, include interesting or unusual elements, provide context about the scene, characters, and setting, include emotions and atmosphere in the prompt, include contrasting elements in the prompt, including a story or narrative in the prompt, provide technical details about the image, such as size, color palette, and style, give the model creative freedom by leaving out some details or allowing it to make choices, using consistent language throughout the prompt. The prompt should be highly detailed and nuanced, with specific requests for detailed setting descriptions, detailed character descriptions, detailed background, and other aspects of the image should almost tell a story. Create a photograph featuring {topic}. "
     },
     "language_adder": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text",
         "target_language"
@@ -1428,7 +1428,7 @@
       "help": "Enhances text by adding idiomatic expressions common in a specified target language."
     },
     "language_translator": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text",
         "target_language"
@@ -1455,7 +1455,67 @@
       "outputs": [
         "loop_idx_1"
       ],
-      "optional_inputs": []
+      "optional_inputs": [],
+      "gui": {
+        "indent_before": -2
+      }
+    },
+    "loop_end_beta": {
+      "type": "proc",
+      "help": "Ends a loop block and controls iteration.",
+      "function": "loop_end",
+      "function_def": "def loop_end(step_index: int, loop_max: int, loop_index: int, output:list) -> any:\n\tnew_counter = loop_index + 1\n\tif new_counter < loop_max:\n\t\treturn {'step_index': step_index, output[0]: new_counter}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\treturn new_counter, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+      "inputs": [
+        "loop_start_marker",
+        "loop_max_count",
+        "loop_iterator"
+      ],
+      "outputs": [
+        "loop_iterator"
+      ],
+      "optional_inputs": [],
+      "gui": {
+        "indent_before": -1,
+        "hide_in_agent_list": true
+      }
+    },
+    "loop_end_beta2": {
+      "type": "proc",
+      "help": "Ends a loop block and controls iteration.",
+      "function": "loop_end",
+      "function_def": "def loop_end(step_index: int, loop_max: int, loop_index: int, output:list) -> any:\n\tnew_counter = loop_index + 1\n\tif new_counter < loop_max:\n\t\treturn {'step_index': step_index, output[0]: new_counter}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\treturn new_counter, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+      "inputs": [
+        "loop_start_marker",
+        "loop_max_count",
+        "loop_iterator"
+      ],
+      "outputs": [
+        "loop_iterator"
+      ],
+      "optional_inputs": [],
+      "gui": {
+        "indent_before": -1,
+        "hide_in_agent_list": true
+      }
+    },
+    "loop_end_beta3": {
+      "type": "proc",
+      "help": "Ends a loop block and controls iteration.",
+      "function": "loop_end",
+      "function_def": "def loop_end(step_index: int, loop_max: int, loop_index: int, output:list) -> any:\n\tnew_counter = loop_index + 1\n\tif new_counter < loop_max:\n\t\treturn {'step_index': step_index, output[0]: new_counter}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\treturn new_counter, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+      "inputs": [
+        "loop_start_marker",
+        "loop_max_count",
+        "loop_iterator"
+      ],
+      "outputs": [
+        "loop_iterator"
+      ],
+      "optional_inputs": [],
+      "gui": {
+        "indent_before": -1,
+        "hide_in_agent_list": true
+      }
     },
     "loop_image_topics_from_file": {
       "type": "workflow",
@@ -1613,7 +1673,137 @@
         "loop_max_1",
         "loop_idx_1"
       ],
-      "optional_inputs": []
+      "optional_inputs": [],
+      "gui": {
+        "indent_after": 2
+      }
+    },
+    "loop_start_beta": {
+      "type": "proc",
+      "help": "Starts a loop. Automatically adds and wires a matching loop_end.",
+      "function": "loop_start",
+      "function_def": "def loop_start(step_index: int, loop_max: int, output:list) -> dict:\n\treturn { output[0]: step_index,\toutput[1]: int(loop_max), output[2]: 0 }, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+      "inputs": [
+        "step_index",
+        "loop_max"
+      ],
+      "outputs": [
+        "loop_start_marker",
+        "loop_max_count",
+        "loop_iterator"
+      ],
+      "optional_inputs": [],
+      "gui": {
+        "indent_after": 1,
+        "on_add": [
+          {
+            "action": "add_partner_agent",
+            "agent_name": "loop_end_beta"
+          },
+          {
+            "action": "auto_wire",
+            "partner_agent": "loop_end_beta"
+          }
+        ]
+      }
+    },
+    "loop_start_beta2": {
+      "type": "proc",
+      "help": "Starts a loop. Automatically adds and wires a matching loop_end.",
+      "function": "loop_start",
+      "function_def": "def loop_start(step_index: int, loop_max: int, output:list) -> dict:\n\treturn { output[0]: step_index,\toutput[1]: int(loop_max), output[2]: 0 }, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+      "inputs": [
+        "step_index",
+        "loop_max"
+      ],
+      "outputs": [
+        "loop_start_marker",
+        "loop_max_count",
+        "loop_iterator"
+      ],
+      "optional_inputs": [],
+      "gui": {
+        "indent_after": 1,
+        "script_defs": {
+          "setup_loop_pair": [
+            "# This script is executed by the GUI when the agent is added.",
+            "# It uses the primitive 'api' object provided by the GUI.",
+            "",
+            "# Step 1: Add the partner agent immediately after this one.",
+            "api.add_partner_agent('loop_end_beta')",
+            "",
+            "# Step 2: Find the partner step we just added.",
+            "source_step = api.get_step(api.source_index)",
+            "partner_step, partner_index = api.find_partner_step('loop_end_beta')",
+            "",
+            "# Step 3: If the partner was found, perform the wiring logic.",
+            "if partner_step:",
+            "  unique_id = api.generate_unique_id()",
+            "",
+            "  # Get the canonical I/O lists from the agent definitions.",
+            "  source_outputs = api.get_agent_def(source_step['agent'])['outputs']",
+            "  partner_inputs = api.get_agent_def(partner_step['agent'])['inputs']",
+            "",
+            "  # Rewire this (the source) step's outputs with the unique ID.",
+            "  new_outputs = [f'{name}_{unique_id}' for name in source_outputs]",
+            "  api.set_step_outputs(api.source_index, new_outputs)",
+            "",
+            "  # Rewire the partner step's parameters to use the new unique outputs.",
+            "  new_params = {}",
+            "  for i, input_name in enumerate(partner_inputs):",
+            "    new_params[input_name] = f'${new_outputs[i]}'",
+            "  api.set_step_params(partner_index, new_params)"
+          ]
+        },
+        "on_add": [
+          {
+            "action": "run_script",
+            "script_name": "setup_loop_pair"
+          }
+        ]
+      }
+    },
+    "loop_start_beta3": {
+      "type": "proc",
+      "help": "Starts a loop. Automatically adds and wires a matching loop_end.",
+      "function": "loop_start",
+      "function_def": "def loop_start(step_index: int, loop_max: int, output:list) -> dict:\n\treturn { output[0]: step_index,\toutput[1]: int(loop_max), output[2]: 0 }, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
+      "inputs": [
+        "step_index",
+        "loop_max"
+      ],
+      "outputs": [
+        "loop_start_marker",
+        "loop_max_count",
+        "loop_iterator"
+      ],
+      "optional_inputs": [],
+      "gui": {
+        "indent_after": 1,
+        "script_defs": {
+          "setup_loop_pair": [
+            "api.add_partner_agent('loop_end_beta')",
+            "source_step = api.get_step(api.source_index)",
+            "partner_step, partner_index = api.find_partner_step('loop_end_beta')",
+            "if partner_step:",
+            "  unique_id = api.generate_unique_id()",
+            "  source_outputs = api.get_agent_def(source_step['agent'])['outputs']",
+            "  partner_inputs = api.get_agent_def(partner_step['agent'])['inputs']",
+            "  new_outputs = [f'{name}_{unique_id}' for name in source_outputs]",
+            "  api.set_step_outputs(api.source_index, new_outputs)",
+            "  new_params = {}",
+            "  for i, input_name in enumerate(partner_inputs):",
+            "    new_params[input_name] = f'${new_outputs[i]}'",
+            "  api.set_step_params(partner_index, new_params)"
+          ]
+        },
+        "on_add": [
+          {
+            "action": "run_script",
+            "script_name": "setup_loop_pair"
+          }
+        ]
+      }
     },
     "loop_test": {
       "type": "workflow",
@@ -1660,6 +1850,15 @@
       "function": "",
       "function_def": ""
     },
+    "new_proc_2": {
+      "type": "proc",
+      "help": "",
+      "inputs": [],
+      "optional_inputs": [],
+      "outputs": [],
+      "function": "",
+      "function_def": ""
+    },
     "new_workflow_1": {
       "type": "workflow",
       "help": "",
@@ -1669,17 +1868,64 @@
       "return_on_fail": 0,
       "steps": []
     },
-    "new_workflow_2": {
+    "new_workflow_4": {
       "type": "workflow",
       "help": "",
       "inputs": [],
       "optional_inputs": [],
       "outputs": [],
       "return_on_fail": 0,
-      "steps": []
+      "steps": [
+        {
+          "agent": "loop_start_beta",
+          "params": {
+            "step_index": "$step_index",
+            "loop_max": "$loop_max"
+          },
+          "output": [
+            "loop_start_marker_259874",
+            "loop_max_count_259874",
+            "loop_iterator_259874"
+          ]
+        },
+        {
+          "agent": "loop_start_beta",
+          "params": {
+            "step_index": "$step_index",
+            "loop_max": "$loop_max"
+          },
+          "output": [
+            "loop_start_marker_259854",
+            "loop_max_count_259854",
+            "loop_iterator_259854"
+          ]
+        },
+        {
+          "agent": "loop_end_beta",
+          "params": {
+            "loop_start_marker": "$loop_start_marker_259854",
+            "loop_max_count": "$loop_max_count_259854",
+            "loop_iterator": "$loop_iterator_259854"
+          },
+          "output": [
+            "loop_iterator"
+          ]
+        },
+        {
+          "agent": "loop_end_beta",
+          "params": {
+            "loop_start_marker": "$loop_start_marker_259874",
+            "loop_max_count": "$loop_max_count_259874",
+            "loop_iterator": "$loop_iterator_259874"
+          },
+          "output": [
+            "loop_iterator"
+          ]
+        }
+      ]
     },
     "outline_agent": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "topic",
         "thesis"
@@ -2679,7 +2925,7 @@
       "help": "Generates a summary of the input text"
     },
     "style_consistency_agent": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text",
         "style_guide"
@@ -2781,7 +3027,7 @@
       "prompt": ""
     },
     "thesis_alignment": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "thesis",
         "input_text"
@@ -2793,7 +3039,7 @@
       "help": "Aligns docuemnt to a specific thesis."
     },
     "transition_agent": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text"
       ],
@@ -2805,7 +3051,7 @@
       "help": "Improves paragraph transitions in an essay."
     },
     "vocabulary_agent": {
-      "type": "txt2txt",
+      "type": "template",
       "inputs": [
         "input_text",
         "tone"
