@@ -8,8 +8,8 @@ import re
 import io
 import logging
 import base64
-from functools import reduce # For dot-notation access
-import operator # For dot-notation access
+from functools import reduce 
+import operator 
 from config_manager import ConfigManager
 from pygments import lex
 from pygments.lexers import PythonLexer
@@ -17,17 +17,23 @@ from pygments.token import Token
 
 # --- CORE LIBRARY IMPORTS ---
 try:
-    # Import the module itself to set globals
     import dynamic_workflows_agents
     from dynamic_workflows_agents import exec_workflow, create_temp_workflow, setup_depth_manager
 except ImportError:
     messagebox.showerror("Import Error", "Could not import the core workflow engine from 'dynamic_workflows_agents.py'. The 'Run' feature will be disabled.")
-    # Create dummy functions so the app can still launch
     dynamic_workflows_agents = None
-    def exec_workflow(**kwargs): return ({"error": "Core library not found"}, -1)
+    def exec_workflow(**kwargs): return ({}, {"status":{"value":-1, "reason":"Core library not found"}})
     def create_temp_workflow(**kwargs): return {"error": "Core library not found"}
     def setup_depth_manager(**kwargs): pass
 
+# --- UTILITY FUNCTION ---
+def get_nested(data, key_str):
+    """Accesses a nested value in a dict using dot notation."""
+    try:
+        return reduce(operator.getitem, key_str.split('.'), data)
+    except (KeyError, TypeError, AttributeError):
+        return None
+        
 # --- Custom Code Editor Widget ---
 class CTkCodeEditor(ctk.CTkFrame):
     def __init__(self, master, language="python", **kwargs):
@@ -740,29 +746,25 @@ class RunAgentModal(ctk.CTkToplevel):
     
     def add_test_case(self, test_data=None):
         if test_data is None:
-            test_data = {
-                "output_variable": "",
-                "assertion_type": "Equals",
-                "expected_value": ""
-            }
+            test_data = { "output_variable": "", "assertion_type": "Equals", "expected_value": "" }
         
         frame = ctk.CTkFrame(self.test_cases_frame)
         frame.pack(fill="x", pady=2)
         frame.grid_columnconfigure(2, weight=1)
         
-        output_vars = self.agent_data.get("outputs", []) + ["__status__.status.value"]
+        output_vars = self.agent_data.get("outputs", []) + ["status.value"]
         
         var_menu = ctk.CTkOptionMenu(frame, values=sorted(output_vars))
         var_menu.grid(row=0, column=0, padx=5, pady=5)
-        var_menu.set(test_data["output_variable"] or "Select Variable")
+        var_menu.set(test_data.get("output_variable") or "Select Variable")
         
         assertion_menu = ctk.CTkOptionMenu(frame, values=["Equals", "Regex Match"])
         assertion_menu.grid(row=0, column=1, padx=5, pady=5)
-        assertion_menu.set(test_data["assertion_type"])
+        assertion_menu.set(test_data.get("assertion_type", "Equals"))
         
         value_entry = ctk.CTkEntry(frame, placeholder_text="Expected Value")
         value_entry.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
-        value_entry.insert(0, test_data["expected_value"])
+        value_entry.insert(0, test_data.get("expected_value", ""))
 
         result_label = ctk.CTkLabel(frame, text="?", width=60, font=ctk.CTkFont(weight="bold"))
         result_label.grid(row=0, column=3, padx=5, pady=5)
@@ -770,13 +772,7 @@ class RunAgentModal(ctk.CTkToplevel):
         remove_btn = ctk.CTkButton(frame, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", command=lambda f=frame: f.destroy())
         remove_btn.grid(row=0, column=4, padx=5, pady=5)
         
-        self.test_widgets.append({
-            "frame": frame,
-            "var_menu": var_menu,
-            "assertion_menu": assertion_menu,
-            "value_entry": value_entry,
-            "result_label": result_label,
-        })
+        self.test_widgets.append({ "frame": frame, "var_menu": var_menu, "assertion_menu": assertion_menu, "value_entry": value_entry, "result_label": result_label })
         
     def load_last_run_config(self):
         run_config = self.agent_data.get("run_config", {})
@@ -835,31 +831,36 @@ class RunAgentModal(ctk.CTkToplevel):
         agent_to_run = None
         if self.agent_data.get('type') != 'workflow':
             agent_to_run = create_temp_workflow(self.agent_name, self.agent_data, temp_config, workflow_inputs)
+            agent_to_run['return_on_fail'] = True
         else:
             agent_to_run = self.agent_data
         
         if not agent_to_run: messagebox.showerror("Error", "Could not prepare agent for execution."); return
 
+        # --- START OF LOGGING FIX ---
         log_stream = io.StringIO()
         ui_log_handler = logging.StreamHandler(log_stream)
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
         ui_log_handler.setFormatter(formatter)
         
         root_logger = logging.getLogger()
-        original_level = root_logger.level
-        root_logger.setLevel(getattr(logging, self.log_level_var.get(), logging.INFO))
+        
+        # 1. Remove all existing handlers from the root logger.
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+            
+        # 2. Add only our new handler.
         root_logger.addHandler(ui_log_handler)
+        root_logger.setLevel(getattr(logging, self.log_level_var.get(), logging.INFO))
+        # --- END OF LOGGING FIX ---
 
-        final_result, status = {}, -1
+        final_result_tape, final_status = {}, {"status": {"value": -99, "reason": "Execution did not run"}}
         try:
-            final_result, status = exec_workflow(workflow=agent_to_run, config=temp_config, cli_args=workflow_inputs, results={})
+            final_result_tape, final_status = exec_workflow(workflow=agent_to_run, config=temp_config, cli_args=workflow_inputs, results={})
         except Exception as e:
-            final_result = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
+            final_result_tape = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
             logging.exception("Workflow execution failed")
-        finally:
-            root_logger.removeHandler(ui_log_handler)
-            root_logger.setLevel(original_level)
-
+        
         self.log_textbox.configure(state="normal")
         self.log_textbox.delete("1.0", "end")
         self.log_textbox.insert("1.0", log_stream.getvalue())
@@ -867,36 +868,36 @@ class RunAgentModal(ctk.CTkToplevel):
 
         self.output_textbox.configure(state="normal")
         self.output_textbox.delete("1.0", "end")
-        self.output_textbox.insert("1.0", json.dumps(final_result, indent=2, cls=CustomJSONEncoder))
+        self.output_textbox.insert("1.0", json.dumps(final_result_tape, indent=2, cls=CustomJSONEncoder))
         self.output_textbox.configure(state="disabled")
-
-        self.run_assertions(final_result)
+        
+        self.run_assertions(final_result_tape, final_status)
         self.tab_view.set("Unit Tests")
 
-    def run_assertions(self, final_result):
-        tests_data = self.agent_data.get("run_config", {}).get("tests", [])
+    def run_assertions(self, final_result_tape, final_status):
         if not self.test_widgets:
             self.test_summary_label.configure(text="No tests defined.")
             return
 
         passed_count = 0
-        total_tests = len([w for w in self.test_widgets if w["frame"].winfo_exists()])
+        active_widgets = [w for w in self.test_widgets if w["frame"].winfo_exists()]
+        total_tests = len(active_widgets)
+        if total_tests == 0:
+            self.test_summary_label.configure(text="No tests defined.")
+            return
 
-        for i, widget_set in enumerate(self.test_widgets):
-            if not widget_set["frame"].winfo_exists(): continue
-
+        for widget_set in active_widgets:
             test = {
                 "output_variable": widget_set["var_menu"].get(),
                 "assertion_type": widget_set["assertion_menu"].get(),
                 "expected_value": widget_set["value_entry"].get()
             }
             
-            # Helper to get nested values from result dict
-            def get_nested(data, key_str):
-                try: return reduce(operator.getitem, key_str.split('.'), data)
-                except (KeyError, TypeError): return None
-            
-            actual_value = get_nested(final_result, test["output_variable"])
+            actual_value = None
+            if test["output_variable"] == 'status.value':
+                actual_value = final_status.get('status', {}).get('value')
+            else:
+                actual_value = get_nested(final_result_tape, test["output_variable"])
             
             test_passed = False
             try:
@@ -904,11 +905,8 @@ class RunAgentModal(ctk.CTkToplevel):
                     if actual_value is not None and re.search(str(test["expected_value"]), str(actual_value)):
                         test_passed = True
                 elif test["assertion_type"] == "Equals":
-                    if actual_value is not None:
-                        # Attempt to cast both to the same type for comparison
-                        try: expected = type(actual_value)(test["expected_value"])
-                        except (ValueError, TypeError): expected = str(test["expected_value"])
-                        if actual_value == expected: test_passed = True
+                    if actual_value is not None and str(actual_value) == str(test["expected_value"]):
+                        test_passed = True
             except Exception:
                 test_passed = False
 
@@ -919,7 +917,7 @@ class RunAgentModal(ctk.CTkToplevel):
                 widget_set["result_label"].configure(text="FAIL", text_color="red")
         
         summary_text = f"Results: {passed_count} / {total_tests} tests passed."
-        summary_color = "green" if passed_count == total_tests else "red"
+        summary_color = "green" if passed_count == total_tests and total_tests > 0 else "red"
         self.test_summary_label.configure(text=summary_text, text_color=summary_color)
         
     def show_test_help(self):
@@ -932,12 +930,12 @@ This panel allows you to define, save, and run automated tests for this agent.
 1.  **Define Inputs:** Set up the required and optional inputs for your test case in the "Inputs" panel.
 2.  **Add Test Cases:** In the "Unit Tests" tab, click "+ Add Test Case".
 3.  **Configure Assertions:**
-    -   **Select Variable:** Choose an output variable from the agent's definition to test. `__status__.status.value` is available for checking the agent's success code.
+    -   **Select Variable:** Choose an output variable from the agent's definition to test. `status.value` is available for checking the agent's success code (0 indicates success).
     -   **Select Assertion Type:**
-        -   `Equals`: Checks if the actual output value is exactly equal to the expected value. Tries to match types (e.g., numbers).
+        -   `Equals`: Checks if the actual output value is exactly equal to the expected value (compared as strings).
         -   `Regex Match`: Checks if the actual output value (treated as a string) matches the provided regular expression. This is powerful for validating formats like dates, URLs, or structured text.
     -   **Enter Expected Value:** Provide the value or regex pattern to test against.
-4.  **Run & Validate:** Click the "Run Agent & Validate" button. The agent will execute, and the test results will appear instantly.
+4.  **Run & Validate:** Click the "Run Agent & Validate" button. The agent will execute, and the test results will appear instantly in the "Unit Tests" tab.
 5.  **Save:** Your inputs and test cases are automatically saved to the agent's `run_config` tag when you run a test or close this window. This allows you to quickly reload your test suite later.
 
 **Example: Testing a Time Agent**
@@ -949,6 +947,8 @@ This panel allows you to define, save, and run automated tests for this agent.
 
 
 # --- Step Editor Modal Window ---
+# ... The rest of the file is unchanged ...
+# (StepEditorModal, GuiSettingsModal)
 class StepEditorModal(ctk.CTkToplevel):
     def __init__(self, parent, index, step_data, agent_def, parent_workflow_data=None):
         super().__init__(parent)

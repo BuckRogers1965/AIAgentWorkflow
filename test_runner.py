@@ -7,7 +7,7 @@ import base64
 import time
 import operator
 from functools import reduce
-import copy  # <-- FIX IS HERE: Added the missing import
+import copy
 
 # --- CORE LIBRARY IMPORTS ---
 try:
@@ -20,7 +20,6 @@ except ImportError:
 
 # --- UTILITY CLASSES AND FUNCTIONS ---
 class CustomJSONEncoder(json.JSONEncoder):
-    """Handles non-serializable data types like bytes for logging."""
     def default(self, o):
         if isinstance(o, bytes):
             try:
@@ -30,10 +29,9 @@ class CustomJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, o)
 
 def get_nested(data, key_str):
-    """Accesses a nested value in a dict using dot notation."""
     try:
         return reduce(operator.getitem, key_str.split('.'), data)
-    except (KeyError, TypeError):
+    except (KeyError, TypeError, AttributeError):
         return None
 
 # --- HTML REPORT GENERATOR ---
@@ -184,7 +182,6 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
-
 class TestRunner:
     def __init__(self, config_path='config.json', loglevel='INFO'):
         self.config_path = config_path
@@ -219,10 +216,8 @@ class TestRunner:
         run_config = agent_data['run_config']
         tests = run_config['tests']
         
-        # --- Prepare and Execute Workflow ---
         workflow_inputs = run_config.get('last_inputs', {})
         
-        # Setup for execution (similar to RunAgentModal)
         temp_config = copy.deepcopy(config)
         setup_depth_manager(temp_config)
         dynamic_workflows_agents.log_text_limit = int(
@@ -235,7 +230,6 @@ class TestRunner:
         else:
             agent_to_run = agent_data
 
-        # Capture logs
         log_stream = io.StringIO()
         ui_log_handler = logging.StreamHandler(log_stream)
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
@@ -245,24 +239,33 @@ class TestRunner:
         root_logger.setLevel(getattr(logging, self.loglevel, logging.INFO))
         root_logger.addHandler(ui_log_handler)
         
-        final_result, status = {}, -1
+        final_result_tape, final_status = {}, {"status": {"value": -99, "reason": "Execution did not run"}}
         try:
-            final_result, status = exec_workflow(workflow=agent_to_run, config=temp_config, cli_args=workflow_inputs, results={})
+            final_result_tape, final_status = exec_workflow(workflow=agent_to_run, config=temp_config, cli_args=workflow_inputs, results={})
+            print (f"***** ****** ******* ******* {final_status}")
         except Exception as e:
-            final_result = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
+            final_result_tape = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
             logging.exception("Workflow execution failed")
         finally:
             root_logger.removeHandler(ui_log_handler)
             root_logger.setLevel(original_level)
             
-        # --- Validate Assertions ---
         agent_test_results = []
         agent_passed_all = True
         
         for test in tests:
             self.stats['total'] += 1
             
-            actual_value = get_nested(final_result, test["output_variable"])
+            output_variable = test["output_variable"]
+            actual_value = None
+            
+            # --- START OF THE REAL, SIMPLER FIX ---
+            if output_variable == 'status.value':
+                actual_value = actual_value = final_status.get('status', {}).get('value')
+            else:
+                actual_value = get_nested(final_result_tape, output_variable)
+            # --- END OF THE REAL, SIMPLER FIX ---
+
             expected_value = test["expected_value"]
             assertion_type = test["assertion_type"]
             
@@ -275,18 +278,10 @@ class TestRunner:
                     else:
                         error_msg = f"Regex '{expected_value}' did not match '{actual_value}'."
                 elif assertion_type == "Equals":
-                    if actual_value is not None:
-                        try:
-                            expected = type(actual_value)(expected_value)
-                        except (ValueError, TypeError):
-                            expected = str(expected_value)
-                        
-                        if actual_value == expected:
-                            test_passed = True
-                        else:
-                            error_msg = f"Expected '{expected}', but got '{actual_value}'."
+                    if actual_value is not None and str(actual_value) == str(expected_value):
+                        test_passed = True
                     else:
-                        error_msg = f"Variable '{test['output_variable']}' was not found in results."
+                        error_msg = f"Expected string '{expected_value}', but got string '{actual_value}'."
             except Exception as e:
                 error_msg = f"Assertion failed with exception: {e}"
 
@@ -308,10 +303,11 @@ class TestRunner:
             'passed_all': agent_passed_all,
             'tests': agent_test_results,
             'log': log_stream.getvalue() if not agent_passed_all else "",
-            'final_result': final_result if not agent_passed_all else {}
+            'final_result': final_result_tape if not agent_passed_all else {}
         })
 
     def generate_report(self):
+        # ... (HTML generation is unchanged) ...
         results_html = ""
         for result in sorted(self.results, key=lambda x: (not x['passed_all'], x['agent_name'])):
             status_class = "pass" if result['passed_all'] else "fail"
@@ -370,7 +366,6 @@ class TestRunner:
             
         print(f"--- Report Generated: {filename} ---")
         print(f"Summary: {self.stats['passed']} passed, {self.stats['failed']} failed out of {self.stats['total']} tests.")
-
 
 def main():
     parser = argparse.ArgumentParser(

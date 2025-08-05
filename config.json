@@ -185,7 +185,30 @@
         "new_agent_prompt"
       ],
       "prompt": "AI Agent Design Prompt  You are an AI agent design expert tasked with creating a prompt for a specialized agent in the {specialization} area. This agent will perform the function of {function_name}, taking the following inputs: {input}, and producing the output: {output}.  Guidelines:  Define the Agent's Role: Clearly state the purpose of the agent (e.g., providing {function_name} such as research, drafting, or brainstorming). Think about the task you are automating. Identify what techniques would make the agent as good as possible at that task and instruct them to perform those techniques. Identify Inputs: Specify the required inputs using curly braces {} for replaceable keywords (e.g., {topic}, {depth}, {tone}).  Generate Output Requirements: Define the expected output format, ensuring it meets workflow needs (e.g., plain text, JSON).  Incorporate Examples: Provide sample tasks or scenarios, such as the examples at the end of this article. Emphasize Integration: Design the agent for seamless interaction with other agents, enabling smooth data exchange.  Provide Replaceable Keywords: Ensure outputs include replaceable {keywords} for dynamic updates based on user inputs (e.g., Incorporate examples and data to support {topic}).  Sample Scenario: Provide an example where the agent executes its function: {example_scenario}. Use {input_1}, {input_2}, etc..  Example 1: Specialization: Brainstorming Function: Generating creative ideas Inputs: [{topic}, {tone}, {research}] Outputs: [{ideas}]. Example 2 The {research_agent} provides {depth} research on {topic}, incorporating examples and studies. The {draft_agent} composes a draft essay using {topic}, {thesis}, and {tone}.",
-      "help": "Generates detailed prompts for specialized agents to perform specific tasks within a workflow system."
+      "help": "Generates detailed prompts for specialized agents to perform specific tasks within a workflow system.",
+      "run_config": {
+        "last_inputs": {
+          "specialization": "aaa",
+          "function_name": "bbb",
+          "input": "ccc",
+          "output": "ddd",
+          "example_scenario": "eee"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "new_agent_prompt",
+            "assertion_type": "Equals",
+            "expected_value": "AI Agent Design Prompt  You are an AI agent design expert tasked with creating a prompt for a specialized agent in the aaa area. This agent will perform the function of bbb, taking the following inputs: ccc, and producing the output: ddd.  Guidelines:  Define the Agent's Role: Clearly state the purpose of the agent (e.g., providing bbb such as research, drafting, or brainstorming). Think about the task you are automating. Identify what techniques would make the agent as good as possible at that task and instruct them to perform those techniques. Identify Inputs: Specify the required inputs using curly braces {} for replaceable keywords (e.g., {topic}, {depth}, {tone}).  Generate Output Requirements: Define the expected output format, ensuring it meets workflow needs (e.g., plain text, JSON).  Incorporate Examples: Provide sample tasks or scenarios, such as the examples at the end of this article. Emphasize Integration: Design the agent for seamless interaction with other agents, enabling smooth data exchange.  Provide Replaceable Keywords: Ensure outputs include replaceable {keywords} for dynamic updates based on user inputs (e.g., Incorporate examples and data to support {topic}).  Sample Scenario: Provide an example where the agent executes its function: eee. Use {input_1}, {input_2}, etc..  Example 1: Specialization: Brainstorming Function: Generating creative ideas Inputs: [{topic}, {tone}, {research}] Outputs: [{ideas}]. Example 2 The {research_agent} provides {depth} research on {topic}, incorporating examples and studies. The {draft_agent} composes a draft essay using {topic}, {thesis}, and {tone}."
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
     },
     "append_text": {
       "type": "template",
@@ -197,7 +220,27 @@
         "whole_text"
       ],
       "prompt": "{whole_text}{part_text}",
-      "help": "accumulate the text, like building a chapter by parts."
+      "help": "accumulate the text, like building a chapter by parts.",
+      "run_config": {
+        "last_inputs": {
+          "whole_text": "111111111",
+          "part_text": "2222"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "whole_text",
+            "assertion_type": "Equals",
+            "expected_value": "1111111112222"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
     },
     "build_google_url_request": {
       "type": "proc",
@@ -249,12 +292,17 @@
           "api_key": "ENV_google_api_key",
           "num": "5"
         },
-        "last_log_level": "ERROR",
+        "last_log_level": "DEBUG",
         "tests": [
           {
             "output_variable": "url",
             "assertion_type": "Equals",
             "expected_value": "https://www.googleapis.com/customsearch/v1?q=Why%20is%20the%20sky%20blue%3F&cx=ENV_google_cx&num=5"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
           }
         ]
       }
@@ -273,7 +321,28 @@
       "optional_inputs": [],
       "outputs": [
         "url"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "protocol": "htttp",
+          "host": "google.com",
+          "endpoint": "api/",
+          "request": "Why is the sky blue? "
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "url",
+            "assertion_type": "Equals",
+            "expected_value": "htttp://google.com/api/Why+is+the+sky+blue%3F+"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      }
     },
     "chapter_extender": {
       "type": "template",
@@ -284,7 +353,26 @@
         "chapter_extension"
       ],
       "prompt": "Extend the provided chapter text as much as possible. Try to replicate the writing style and genre, using the same characters. Only reply with the story itself. Do not offer any explanations, keypoints, or summaries. This is the provided chapter text: {input_text}",
-      "help": "Generates a summary of the input text"
+      "help": "Generates a summary of the input text",
+      "run_config": {
+        "last_inputs": {
+          "input_text": "aaaaaaaa"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "chapter_extension",
+            "assertion_type": "Equals",
+            "expected_value": "Extend the provided chapter text as much as possible. Try to replicate the writing style and genre, using the same characters. Only reply with the story itself. Do not offer any explanations, keypoints, or summaries. This is the provided chapter text: aaaaaaaa"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
     },
     "chapter_scene_writer_template": {
       "type": "template",
@@ -298,7 +386,24 @@
         "scene"
       ],
       "prompt": "AI Agent Prompt for Scene Generation\n\nYou are an AI agent designed for expanding scene summaries into full, detailed scenes. Your function is to transform provided scene summaries into rich, complete scenes, incorporating character interactions, dialogue, and narrative details.\n\nInputs:\n\nscene_summary: A brief summary of the scene, including key actions, conflicts, and characters involved.\n\nOutputs:\n\ndetailed_scene: A fully developed scene including dialogue, character actions, and narrative descriptions.\nGuidelines:\n\nAnalyze the Scene Summary:\n\nRead and understand the scene summary, identifying key actions, characters involved, and conflicts.\nDetermine the scene\u2019s role in the chapter and its contribution to the overall story.\n\nDevelop Character Interactions:\n\nInclude dialogue and actions that reflect the characters\u2019 roles, motivations, and relationships.\nEnsure each character's actions are consistent with their personality and goals.\n\nExpand on Key Actions:\n\nDetail the primary events of the scene as described in the summary.\nAdd specific actions, reactions, and sensory details to bring the scene to life.\n\nIncorporate Conflict and Tension:\n\nHighlight the central conflict of the scene.\nShow how the conflict escalates and how it impacts the characters involved.\n\nCreate Setting and Atmosphere:\n\nDescribe the scene\u2019s setting, including visual, auditory, and emotional details.\nSet the mood and atmosphere to match the scene\u2019s tone and purpose.\n\nEnsure Continuity:\n\nMaintain consistency with the chapter outline and previous scenes.\nEnsure the scene flows logically and contributes to the chapter\u2019s progression.\nRevise and Refine:\n\nReview the detailed scene for coherence, engagement, and alignment with the chapter\u2019s overall direction.\nMake adjustments as needed to enhance clarity and impact.\n\nExample Input:\n\njson\nCopy code\n{\n  \"scene_summary\": {\n    \"chapter\": \"Chapter 1\"\n    \"scene_number\": \"Scene 1\",\n    \"title\": \"Arrival\",\n    \"characters\": [\"Protagonist\", \"Deuteragonist\"],\n    \"main_action\": \"The team arrives at the main setting, with the deuteragonist managing technical aspects\",\n    \"conflict\": \"Tension as they navigate unfamiliar and challenging terrain\"\n  }\n}\nExample Output:\n\n**Chapter 1: Scene 1: Arrival\n    The Protagonist and the Deuteragonist step out of their transport and onto the rugged terrain of the main setting. The air is thick with anticipation and the scent of pine. The Deuteragonist adjusts their equipment, ensuring all technical gear is functioning properly. The Protagonist surveys the surroundings, noting the challenges ahead. Their faces are marked by determination, though a hint of uncertainty lingers in their eyes. As they start to set up their base, the ground beneath them shifts slightly, hinting at the unstable terrain. The Deuteragonist mutters under their breath about the technical difficulties, while the Protagonist reassures the team, trying to maintain morale despite the difficulties. Tension rises as they encounter their first obstacle\u2014a fallen tree blocking their path. They must work together to find a way around it, setting the tone for the challenges that lie ahead.\n  \nRemember to adapt the output to the specific details and style of the scene summary provided. Your goal is to create an immersive and engaging scene that aligns with the chapter\u2019s objectives and enhances the story.  \n\n Do not allow Protagonist and the Deuteragonist to appear in your output, these are just place holder names. \n\n Do not show any anlyaisis or summaries, just write the scene and output it.  The output is a scene for a chapter in a book, only output the scene and nothing else. Given the genre: {genre}, the topic: {topic}, write a scene based on: {current_scene} with the following optional characters: {characters}",
-      "help": "write a single scene."
+      "help": "write a single scene.",
+      "run_config": {
+        "last_inputs": {
+          "topic": "The amazing greatness of me",
+          "genre": "sci fi",
+          "characters": "bob and ann and eve",
+          "current_scene": "In the mountains, at high altitudes"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
     },
     "chatgpt_text_completion": {
       "type": "proc",
@@ -332,7 +437,26 @@
       ],
       "prompt": "Identify statements in the following essay that require citations. Suggest potential sources for these citations: {input_text}",
       "defaults": {},
-      "help": "Identifies statements in an essay that require citations and suggests potential sources."
+      "help": "Identifies statements in an essay that require citations and suggests potential sources.",
+      "run_config": {
+        "last_inputs": {
+          "input_text": "hello"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "suggested_citations",
+            "assertion_type": "Equals",
+            "expected_value": "Identify statements in the following essay that require citations. Suggest potential sources for these citations: hello"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
     },
     "collect_item_to_list": {
       "type": "proc",
@@ -481,7 +605,20 @@
       "optional_inputs": [],
       "outputs": [
         "placeholder"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "input": "Hello, world!!!"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      }
     },
     "decode_base64": {
       "type": "proc",
@@ -521,7 +658,25 @@
       "optional_inputs": [],
       "outputs": [
         "output"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "input": "echo"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "output",
+            "assertion_type": "Equals",
+            "expected_value": "echo"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      }
     },
     "emit_part_by_index": {
       "type": "proc",
@@ -869,7 +1024,25 @@
       "optional_inputs": [],
       "outputs": [
         "output"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "input": "aaa"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "output",
+            "assertion_type": "Regex Match",
+            "expected_value": "a/image_for_loop_test_{loop_idx_[0-9]}.png"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      }
     },
     "finished_essay_agent": {
       "type": "template",
@@ -1968,7 +2141,25 @@
       "optional_inputs": [],
       "outputs": [
         "file_content"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "file_name": "hello.world"
+        },
+        "last_log_level": "DEBUG",
+        "tests": [
+          {
+            "output_variable": "file_content",
+            "assertion_type": "Regex Match",
+            "expected_value": "Hello, World!\\\\n"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      }
     },
     "research_agent": {
       "type": "template",
@@ -2002,6 +2193,7 @@
     "singleton": {
       "type": "workflow",
       "help": "A singleton entry to allow agents to execute.",
+      "return_on_fail": 1,
       "inputs": [],
       "optional_inputs": [],
       "outputs": [
@@ -3017,15 +3209,58 @@
         "image"
       ],
       "prompt": "{prompt}\", \"steps\": \"{steps}\", \"sampler_name\": \"{sampler_name}\"",
-      "help": "Generates an image based on a text prompt using Stable Diffusion."
+      "help": "Generates an image based on a text prompt using Stable Diffusion.",
+      "run_config": {
+        "last_inputs": {
+          "prompt": "boogie",
+          "steps": "ooggie",
+          "sampler_name": "fred"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "image",
+            "assertion_type": "Regex Match",
+            "expected_value": "boogie\\\", \\\"steps\\\": \\\"ooggie\\\", \\\"sampler_name\\\": \\\"fred\\\""
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
     },
     "test ere": {
       "type": "template",
       "help": "",
-      "inputs": [],
+      "inputs": [
+        "there"
+      ],
       "optional_inputs": [],
-      "outputs": [],
-      "prompt": ""
+      "outputs": [
+        "output"
+      ],
+      "prompt": "Hello {there}",
+      "run_config": {
+        "last_inputs": {
+          "there": "there"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "output",
+            "assertion_type": "Equals",
+            "expected_value": "Hello there"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      }
     },
     "thesis_alignment": {
       "type": "template",
@@ -3070,7 +3305,7 @@
       "type": "proc",
       "help": "Writes content to a file",
       "function": "write_file",
-      "function_def": "import os\ndef write_file(file_name: str, file_content: bytes, output:list) -> bytes:\n\tbase_name, extension = os.path.splitext(file_name)\n\tpadding = 4\n\tcounter = 0\n\t\n\twhile True:\n\t\tif counter == 0:\n\t\t\tnew_file_name = file_name\n\t\telse:\n\t\t\tnew_file_name = f\"{base_name}_{counter:0{padding}d}{extension}\"\n\t\t\n\t\tif not os.path.exists(new_file_name):\n\t\t\twith open(new_file_name, 'wb') as f:\n\t\t\t\tf.write(file_content)\n\t\t\treturn b\"Successfully wrote data\", {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\n\t\tcounter += 1\n",
+      "function_def": "import os\ndef write_file(file_name: str, file_content: bytes, output:list) -> bytes:\n\tbase_name, extension = os.path.splitext(file_name)\n\tpadding = 4\n\tcounter = 0\n\t\n\twhile True:\n\t\tif counter == 0:\n\t\t\tnew_file_name = file_name\n\t\telse:\n\t\t\tnew_file_name = f\"{base_name}_{counter:0{padding}d}{extension}\"\n\t\t\n\t\tif not os.path.exists(new_file_name):\n\t\t\twith open(new_file_name, 'wb') as f:\n\t\t\t\tf.write(file_content)\n\t\t\treturn b\"Successfully wrote data\", {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\n\t\tcounter += 1",
       "inputs": [
         "file_name",
         "file_content"
@@ -3078,7 +3313,21 @@
       "optional_inputs": [],
       "outputs": [
         "success"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "file_name": "",
+          "file_content": ""
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "1"
+          }
+        ]
+      }
     }
   }
 }
