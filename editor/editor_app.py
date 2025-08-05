@@ -5,10 +5,28 @@ import json
 import copy
 import time
 import re
+import io
+import logging
+import base64
+from functools import reduce # For dot-notation access
+import operator # For dot-notation access
 from config_manager import ConfigManager
 from pygments import lex
 from pygments.lexers import PythonLexer
 from pygments.token import Token
+
+# --- CORE LIBRARY IMPORTS ---
+try:
+    # Import the module itself to set globals
+    import dynamic_workflows_agents
+    from dynamic_workflows_agents import exec_workflow, create_temp_workflow, setup_depth_manager
+except ImportError:
+    messagebox.showerror("Import Error", "Could not import the core workflow engine from 'dynamic_workflows_agents.py'. The 'Run' feature will be disabled.")
+    # Create dummy functions so the app can still launch
+    dynamic_workflows_agents = None
+    def exec_workflow(**kwargs): return ({"error": "Core library not found"}, -1)
+    def create_temp_workflow(**kwargs): return {"error": "Core library not found"}
+    def setup_depth_manager(**kwargs): pass
 
 # --- Custom Code Editor Widget ---
 class CTkCodeEditor(ctk.CTkFrame):
@@ -226,7 +244,6 @@ class WorkflowEditorFrame(BaseEditorFrame):
                 try: exec(script_code, {"api": api})
                 except Exception as e: print(f"Error executing GUI script '{script_name}': {e}")
 
-    # --- FIX START: Logic added to highlight invalid steps in red ---
     def refresh_steps_list(self):
         for widget in self.steps_frame.winfo_children(): widget.destroy()
         steps = self.data.get("steps", []); current_indent = 0; indent_char = "    "
@@ -249,7 +266,6 @@ class WorkflowEditorFrame(BaseEditorFrame):
             step_label = ctk.CTkLabel(step_frame, text=label_text)
             step_label.grid(row=0, column=3, padx=10, pady=5, sticky="w")
             
-            # If the agent definition was not found, highlight the label in red.
             if not agent_def:
                 step_label.configure(text_color="red", text=f"{label_text} (not found)")
             
@@ -257,7 +273,6 @@ class WorkflowEditorFrame(BaseEditorFrame):
             
             indent_modifier_after = gui_hints.get("indent_after", 0)
             current_indent = max(0, current_indent + indent_modifier_after)
-    # --- FIX END ---
             
     def get_data(self):
         updated_data = copy.deepcopy(self.data)
@@ -442,16 +457,25 @@ class App(ctk.CTk):
         clear_search_btn.grid(row=0, column=1, padx=(5, 0))
         self.agent_scroll_frame = ctk.CTkScrollableFrame(self.agent_list_frame)
         self.agent_scroll_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        
     def create_editor_panel(self):
         self.editor_container = ctk.CTkFrame(self); self.editor_container.grid(row=0, column=1, padx=10, pady=(10,0), sticky="nsew")
         self.editor_container.grid_rowconfigure(0, weight=1); self.editor_container.grid_columnconfigure(0, weight=1)
         self.action_bar = ctk.CTkFrame(self, fg_color="transparent"); self.action_bar.grid(row=1, column=1, padx=10, pady=10, sticky="sew")
-        self.cancel_btn = ctk.CTkButton(self.action_bar, text="Cancel", command=self.show_welcome_message)
+        
         self.save_btn = ctk.CTkButton(self.action_bar, text="Save Agent", command=self.save_agent, fg_color="green")
+        self.run_btn = ctk.CTkButton(self.action_bar, text="▶️ Run", command=self.open_run_modal, fg_color="#FFC700", text_color="#000000", hover_color="#FFA000")
+        self.cancel_btn = ctk.CTkButton(self.action_bar, text="Cancel", command=self.show_welcome_message, fg_color="#D32F2F", hover_color="#B71C1C")
+        self.spacer_frame = ctk.CTkFrame(self.action_bar, fg_color="transparent", width=240)
+
     def create_modal_overlay(self):
         self.overlay = ctk.CTkFrame(self, fg_color=("#000000", "#000000")); self.overlay.lower()
-        self.overlay_label = ctk.CTkLabel(self.overlay, text="Editing Step...\nMain window is locked.", font=ctk.CTkFont(size=24, weight="bold"))
-    def show_overlay(self): self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1); self.overlay_label.place(relx=0.5, rely=0.5, anchor="center"); self.overlay.lift()
+        self.overlay_label = ctk.CTkLabel(self.overlay, text="", font=ctk.CTkFont(size=24, weight="bold"))
+        
+    def show_overlay(self, text="Editing Step...\nMain window is locked."):
+        self.overlay_label.configure(text=text)
+        self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1); self.overlay_label.place(relx=0.5, rely=0.5, anchor="center"); self.overlay.lift()
+        
     def hide_overlay(self): self.overlay.place_forget()
     def on_search_changed(self, *args): self.refresh_agent_list()
     def refresh_agent_list(self):
@@ -480,13 +504,24 @@ class App(ctk.CTk):
         self.current_agent_name = None; self.editor_frame_instance = None
         label = ctk.CTkLabel(self.editor_container, text="Select an agent to edit or create a new one.", font=ctk.CTkFont(size=24)); label.place(relx=0.5, rely=0.5, anchor="center")
         self.action_bar.grid_remove()
+        
     def build_editor_form(self):
         if self.editor_frame_instance: self.editor_frame_instance.destroy()
-        self.action_bar.grid(); self.save_btn.pack(side="right", padx=10, pady=10); self.cancel_btn.pack(side="right", padx=0, pady=10)
+        self.action_bar.grid()
+        
+        for widget in [self.save_btn, self.run_btn, self.cancel_btn, self.spacer_frame]:
+            widget.pack_forget()
+        
+        self.save_btn.pack(side="right", padx=10, pady=10)
+        self.run_btn.pack(side="right", padx=0, pady=10)
+        self.spacer_frame.pack(side="right")
+        self.cancel_btn.pack(side="right", padx=0, pady=10)
+
         agent_data = self.config.get_agent_data(self.current_agent_name)
         editor_class = {"workflow": WorkflowEditorFrame, "proc": ProcEditorFrame, "template": TemplateEditorFrame}.get(agent_data.get("type"), JsonEditorFrame)
         self.editor_frame_instance = editor_class(self.editor_container, self.current_agent_name, copy.deepcopy(agent_data), self)
         self.editor_frame_instance.grid(row=0, column=0, sticky="nsew")
+        
     def save_agent(self):
         if not self.editor_frame_instance or not self.current_agent_name: return
         updated_data = self.editor_frame_instance.get_data();
@@ -511,7 +546,6 @@ class App(ctk.CTk):
         modal = GlobalConfigEditorModal(self, self.config); self.wait_window(modal)
         if modal.saved: self.config.save(); self.show_toast("Global configuration saved successfully!")
     
-    # --- FIX START: Logic added to show a popup on invalid agent edit attempts ---
     def open_step_editor(self, index):
         if not isinstance(self.editor_frame_instance, WorkflowEditorFrame): return
 
@@ -524,14 +558,9 @@ class App(ctk.CTk):
         agent_name = step_data.get("agent", "")
         agent_def = self.config.get_agent_data(agent_name)
 
-        # Check if the agent exists BEFORE opening the modal.
         if not agent_def:
-            messagebox.showerror(
-                "Agent Not Found",
-                f"The agent '{agent_name}' used in step {index} could not be found.\n\n"
-                "It may have been renamed or deleted. Please correct the agent name in the workflow."
-            )
-            return  # Stop execution here
+            messagebox.showerror("Agent Not Found", f"The agent '{agent_name}' used in step {index} could not be found.")
+            return
 
         self.show_overlay()
         modal = StepEditorModal(self, index, step_data, agent_def, parent_workflow_data)
@@ -541,7 +570,20 @@ class App(ctk.CTk):
         if modal.saved:
             self.editor_frame_instance.data["steps"][index] = modal.get_result()
             self.editor_frame_instance.refresh_steps_list()
-    # --- FIX END ---
+            
+    def open_run_modal(self):
+        if not self.editor_frame_instance:
+            return
+            
+        current_agent_data = self.editor_frame_instance.get_data()
+        if current_agent_data is None:
+            messagebox.showerror("Error", "Cannot run agent. Please check editor for errors (e.g., invalid JSON).")
+            return
+
+        self.show_overlay(f"Running '{self.current_agent_name}'...\nMain window is locked.")
+        modal = RunAgentModal(self, self.current_agent_name, current_agent_data)
+        self.wait_window(modal)
+        self.hide_overlay()
 
     def show_toast(self, message):
         toast = ctk.CTkLabel(self, text=message, fg_color=("#333", "#555"), text_color="white", corner_radius=10, font=("", 14))
@@ -554,16 +596,366 @@ class App(ctk.CTk):
         textbox.pack(fill="both", expand=True, padx=10, pady=10)
         textbox.insert("1.0", content); textbox.configure(state="disabled")
 
+# --- Custom JSON Encoder for Run Modal ---
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, bytes):
+            try:
+                return o.decode('utf-8')
+            except UnicodeDecodeError:
+                return f"<base64_encoded_bytes>{base64.b64encode(o).decode('utf-8')}</base64_encoded_bytes>"
+        return json.JSONEncoder.default(self, o)
+
+# --- Run Agent Modal Window ---
+class RunAgentModal(ctk.CTkToplevel):
+    def __init__(self, parent_app, agent_name, agent_data):
+        super().__init__(parent_app)
+        self.title(f"Run Agent: {agent_name}")
+        self.geometry("900x700")
+
+        self.app = parent_app
+        self.agent_name = agent_name
+        self.agent_data = agent_data
+        
+        self.input_entries = {}
+        self.optional_frames = {}
+        self.test_widgets = []
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        self.create_widgets()
+        self.load_last_run_config()
+        self.transient(parent_app)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.close)
+
+    def close(self):
+        self.save_current_run_config()
+        self.destroy()
+
+    def create_widgets(self):
+        input_container = ctk.CTkFrame(self)
+        input_container.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        input_container.grid_columnconfigure(0, weight=1)
+
+        self.inputs_scroll_frame = ctk.CTkScrollableFrame(input_container, label_text="Inputs")
+        self.inputs_scroll_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        button_frame = ctk.CTkFrame(input_container, fg_color="transparent")
+        button_frame.pack(fill="x", padx=10, pady=(5,10))
+        
+        ctk.CTkLabel(button_frame, text="Log Level:").pack(side="left", padx=(0,5))
+        self.log_level_var = ctk.StringVar(value="INFO")
+        log_level_menu = ctk.CTkOptionMenu(button_frame, variable=self.log_level_var, values=["DEBUG", "INFO", "WARNING", "ERROR"])
+        log_level_menu.pack(side="left")
+
+        help_button = ctk.CTkButton(button_frame, text="?", width=25, command=self.show_test_help)
+        help_button.pack(side="left", padx=10)
+
+        run_button = ctk.CTkButton(button_frame, text="Run Agent & Validate", command=self.execute_run, fg_color="green")
+        run_button.pack(side="right")
+        
+        output_container = ctk.CTkFrame(self)
+        output_container.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        output_container.grid_columnconfigure(0, weight=1)
+        output_container.grid_rowconfigure(0, weight=1)
+
+        self.tab_view = ctk.CTkTabview(output_container)
+        self.tab_view.pack(fill="both", expand=True)
+
+        self.output_tab = self.tab_view.add("Final Output")
+        self.log_tab = self.tab_view.add("Verbose Log")
+        self.test_tab = self.tab_view.add("Unit Tests")
+
+        self.output_textbox = ctk.CTkTextbox(self.output_tab, font=("monospace", 12), wrap="word")
+        self.output_textbox.pack(fill="both", expand=True)
+        self.log_textbox = ctk.CTkTextbox(self.log_tab, font=("monospace", 12), wrap="word")
+        self.log_textbox.pack(fill="both", expand=True)
+        self.create_test_tab_widgets()
+
+        self.populate_input_fields()
+        
+    def create_test_tab_widgets(self):
+        self.test_tab.grid_columnconfigure(0, weight=1)
+        self.test_tab.grid_rowconfigure(1, weight=1)
+        
+        top_frame = ctk.CTkFrame(self.test_tab)
+        top_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        
+        self.test_summary_label = ctk.CTkLabel(top_frame, text="Run tests to see results.", font=ctk.CTkFont(weight="bold"))
+        self.test_summary_label.pack(side="left")
+        
+        ctk.CTkButton(top_frame, text="+ Add Test Case", command=self.add_test_case).pack(side="right")
+        
+        self.test_cases_frame = ctk.CTkScrollableFrame(self.test_tab, label_text="Assertions")
+        self.test_cases_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+
+    def populate_input_fields(self):
+        for widget in self.inputs_scroll_frame.winfo_children(): widget.destroy()
+        self.input_entries.clear()
+
+        required_inputs = self.agent_data.get("inputs", [])
+        if required_inputs:
+            ctk.CTkLabel(self.inputs_scroll_frame, text="Required", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=5)
+            for key in required_inputs: self.add_input_field(self.inputs_scroll_frame, key, is_optional=False)
+        
+        all_optionals = self.agent_data.get("optional_inputs", [])
+        if all_optionals:
+            ctk.CTkLabel(self.inputs_scroll_frame, text="Optional", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=5, pady=(10,0))
+            self.optional_menu = ctk.CTkOptionMenu(self.inputs_scroll_frame, values=["Add Optional Input..."] + sorted(all_optionals), command=self.add_optional_from_menu)
+            self.optional_menu.pack(anchor="w", padx=5, pady=5)
+
+    def add_input_field(self, parent, key, is_optional=True):
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", expand=True, pady=2)
+        
+        ctk.CTkLabel(frame, text=key, width=150).pack(side="left", padx=5)
+        entry = ctk.CTkEntry(frame); entry.pack(side="left", fill="x", expand=True, padx=5)
+        self.input_entries[key] = entry
+
+        if is_optional:
+            remove_btn = ctk.CTkButton(frame, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", command=lambda k=key: self.remove_optional_field(k))
+            remove_btn.pack(side="left", padx=5)
+            self.optional_frames[key] = frame
+
+    def add_optional_from_menu(self, choice):
+        if "Add Optional Input..." not in choice and choice not in self.optional_frames:
+            self.add_input_field(self.inputs_scroll_frame, choice, is_optional=True)
+            current_values = self.optional_menu.cget("values")
+            current_values.remove(choice)
+            self.optional_menu.configure(values=current_values if len(current_values) > 1 else ["No more optionals"])
+            self.optional_menu.set("Add Optional Input...")
+
+    def remove_optional_field(self, key):
+        if key in self.optional_frames:
+            self.optional_frames[key].destroy()
+            del self.optional_frames[key]
+            del self.input_entries[key]
+            
+            current_values = self.optional_menu.cget("values")
+            if "No more optionals" in current_values: current_values.remove("No more optionals")
+            if key not in current_values: current_values.append(key)
+            self.optional_menu.configure(values=sorted(current_values))
+    
+    def add_test_case(self, test_data=None):
+        if test_data is None:
+            test_data = {
+                "output_variable": "",
+                "assertion_type": "Equals",
+                "expected_value": ""
+            }
+        
+        frame = ctk.CTkFrame(self.test_cases_frame)
+        frame.pack(fill="x", pady=2)
+        frame.grid_columnconfigure(2, weight=1)
+        
+        output_vars = self.agent_data.get("outputs", []) + ["__status__.status.value"]
+        
+        var_menu = ctk.CTkOptionMenu(frame, values=sorted(output_vars))
+        var_menu.grid(row=0, column=0, padx=5, pady=5)
+        var_menu.set(test_data["output_variable"] or "Select Variable")
+        
+        assertion_menu = ctk.CTkOptionMenu(frame, values=["Equals", "Regex Match"])
+        assertion_menu.grid(row=0, column=1, padx=5, pady=5)
+        assertion_menu.set(test_data["assertion_type"])
+        
+        value_entry = ctk.CTkEntry(frame, placeholder_text="Expected Value")
+        value_entry.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        value_entry.insert(0, test_data["expected_value"])
+
+        result_label = ctk.CTkLabel(frame, text="?", width=60, font=ctk.CTkFont(weight="bold"))
+        result_label.grid(row=0, column=3, padx=5, pady=5)
+
+        remove_btn = ctk.CTkButton(frame, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", command=lambda f=frame: f.destroy())
+        remove_btn.grid(row=0, column=4, padx=5, pady=5)
+        
+        self.test_widgets.append({
+            "frame": frame,
+            "var_menu": var_menu,
+            "assertion_menu": assertion_menu,
+            "value_entry": value_entry,
+            "result_label": result_label,
+        })
+        
+    def load_last_run_config(self):
+        run_config = self.agent_data.get("run_config", {})
+        last_inputs = run_config.get("last_inputs", {})
+        last_log_level = run_config.get("last_log_level", "INFO")
+        tests = run_config.get("tests", [])
+
+        self.log_level_var.set(last_log_level)
+
+        for key, value in last_inputs.items():
+            if key in self.input_entries:
+                self.input_entries[key].insert(0, value)
+            elif key in self.agent_data.get("optional_inputs", []) and key not in self.optional_frames:
+                self.add_optional_from_menu(key)
+                if key in self.input_entries:
+                    self.input_entries[key].insert(0, value)
+        
+        for test in tests:
+            self.add_test_case(test)
+            
+    def save_current_run_config(self):
+        workflow_inputs = {key: entry.get() for key, entry in self.input_entries.items()}
+        current_log_level = self.log_level_var.get()
+        
+        tests_data = []
+        for widget_set in self.test_widgets:
+            if widget_set["frame"].winfo_exists():
+                tests_data.append({
+                    "output_variable": widget_set["var_menu"].get(),
+                    "assertion_type": widget_set["assertion_menu"].get(),
+                    "expected_value": widget_set["value_entry"].get()
+                })
+
+        new_run_config = {
+            "last_inputs": workflow_inputs,
+            "last_log_level": current_log_level,
+            "tests": tests_data
+        }
+        
+        if workflow_inputs or tests_data:
+            self.app.editor_frame_instance.data['run_config'] = new_run_config
+
+    def execute_run(self):
+        self.save_current_run_config()
+        
+        if dynamic_workflows_agents:
+            dynamic_workflows_agents.log_text_limit = int(
+                self.app.config.config.get('workflow_settings', {}).get('log_text_limit', 500)
+            )
+
+        workflow_inputs = {key: entry.get() for key, entry in self.input_entries.items()}
+        temp_config = copy.deepcopy(self.app.config.config)
+        temp_config['agents'][self.agent_name] = self.agent_data
+        setup_depth_manager(temp_config)
+        
+        agent_to_run = None
+        if self.agent_data.get('type') != 'workflow':
+            agent_to_run = create_temp_workflow(self.agent_name, self.agent_data, temp_config, workflow_inputs)
+        else:
+            agent_to_run = self.agent_data
+        
+        if not agent_to_run: messagebox.showerror("Error", "Could not prepare agent for execution."); return
+
+        log_stream = io.StringIO()
+        ui_log_handler = logging.StreamHandler(log_stream)
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+        ui_log_handler.setFormatter(formatter)
+        
+        root_logger = logging.getLogger()
+        original_level = root_logger.level
+        root_logger.setLevel(getattr(logging, self.log_level_var.get(), logging.INFO))
+        root_logger.addHandler(ui_log_handler)
+
+        final_result, status = {}, -1
+        try:
+            final_result, status = exec_workflow(workflow=agent_to_run, config=temp_config, cli_args=workflow_inputs, results={})
+        except Exception as e:
+            final_result = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
+            logging.exception("Workflow execution failed")
+        finally:
+            root_logger.removeHandler(ui_log_handler)
+            root_logger.setLevel(original_level)
+
+        self.log_textbox.configure(state="normal")
+        self.log_textbox.delete("1.0", "end")
+        self.log_textbox.insert("1.0", log_stream.getvalue())
+        self.log_textbox.configure(state="disabled")
+
+        self.output_textbox.configure(state="normal")
+        self.output_textbox.delete("1.0", "end")
+        self.output_textbox.insert("1.0", json.dumps(final_result, indent=2, cls=CustomJSONEncoder))
+        self.output_textbox.configure(state="disabled")
+
+        self.run_assertions(final_result)
+        self.tab_view.set("Unit Tests")
+
+    def run_assertions(self, final_result):
+        tests_data = self.agent_data.get("run_config", {}).get("tests", [])
+        if not self.test_widgets:
+            self.test_summary_label.configure(text="No tests defined.")
+            return
+
+        passed_count = 0
+        total_tests = len([w for w in self.test_widgets if w["frame"].winfo_exists()])
+
+        for i, widget_set in enumerate(self.test_widgets):
+            if not widget_set["frame"].winfo_exists(): continue
+
+            test = {
+                "output_variable": widget_set["var_menu"].get(),
+                "assertion_type": widget_set["assertion_menu"].get(),
+                "expected_value": widget_set["value_entry"].get()
+            }
+            
+            # Helper to get nested values from result dict
+            def get_nested(data, key_str):
+                try: return reduce(operator.getitem, key_str.split('.'), data)
+                except (KeyError, TypeError): return None
+            
+            actual_value = get_nested(final_result, test["output_variable"])
+            
+            test_passed = False
+            try:
+                if test["assertion_type"] == "Regex Match":
+                    if actual_value is not None and re.search(str(test["expected_value"]), str(actual_value)):
+                        test_passed = True
+                elif test["assertion_type"] == "Equals":
+                    if actual_value is not None:
+                        # Attempt to cast both to the same type for comparison
+                        try: expected = type(actual_value)(test["expected_value"])
+                        except (ValueError, TypeError): expected = str(test["expected_value"])
+                        if actual_value == expected: test_passed = True
+            except Exception:
+                test_passed = False
+
+            if test_passed:
+                passed_count += 1
+                widget_set["result_label"].configure(text="PASS", text_color="green")
+            else:
+                widget_set["result_label"].configure(text="FAIL", text_color="red")
+        
+        summary_text = f"Results: {passed_count} / {total_tests} tests passed."
+        summary_color = "green" if passed_count == total_tests else "red"
+        self.test_summary_label.configure(text=summary_text, text_color=summary_color)
+        
+    def show_test_help(self):
+        help_text = """
+**Agent Unit Testing**
+
+This panel allows you to define, save, and run automated tests for this agent.
+
+**How it Works:**
+1.  **Define Inputs:** Set up the required and optional inputs for your test case in the "Inputs" panel.
+2.  **Add Test Cases:** In the "Unit Tests" tab, click "+ Add Test Case".
+3.  **Configure Assertions:**
+    -   **Select Variable:** Choose an output variable from the agent's definition to test. `__status__.status.value` is available for checking the agent's success code.
+    -   **Select Assertion Type:**
+        -   `Equals`: Checks if the actual output value is exactly equal to the expected value. Tries to match types (e.g., numbers).
+        -   `Regex Match`: Checks if the actual output value (treated as a string) matches the provided regular expression. This is powerful for validating formats like dates, URLs, or structured text.
+    -   **Enter Expected Value:** Provide the value or regex pattern to test against.
+4.  **Run & Validate:** Click the "Run Agent & Validate" button. The agent will execute, and the test results will appear instantly.
+5.  **Save:** Your inputs and test cases are automatically saved to the agent's `run_config` tag when you run a test or close this window. This allows you to quickly reload your test suite later.
+
+**Example: Testing a Time Agent**
+-   **Output Variable:** `current_time`
+-   **Assertion Type:** `Regex Match`
+-   **Expected Value:** `^\\d{4}-\\d{2}-\\d{2}$`  (This regex checks for a YYYY-MM-DD format)
+"""
+        self.app.show_help_modal("Unit Testing Help", help_text)
+
+
 # --- Step Editor Modal Window ---
 class StepEditorModal(ctk.CTkToplevel):
-    # --- FIX START: Reverted signature to accept pre-validated agent_def ---
     def __init__(self, parent, index, step_data, agent_def, parent_workflow_data=None):
         super().__init__(parent)
         self.title(f"Edit Step {index}: {step_data.get('agent')}")
         self.geometry("1100x700")
 
         self.agent_def = agent_def or {}
-    # --- FIX END ---
 
         self.editing_data = copy.deepcopy(step_data)
         self.step_index = index

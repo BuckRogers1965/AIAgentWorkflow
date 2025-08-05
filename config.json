@@ -241,7 +241,23 @@
       ],
       "outputs": [
         "url"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "request": "Why is the sky blue?",
+          "cx": "ENV_google_cx",
+          "api_key": "ENV_google_api_key",
+          "num": "5"
+        },
+        "last_log_level": "ERROR",
+        "tests": [
+          {
+            "output_variable": "url",
+            "assertion_type": "Equals",
+            "expected_value": "https://www.googleapis.com/customsearch/v1?q=Why%20is%20the%20sky%20blue%3F&cx=ENV_google_cx&num=5"
+          }
+        ]
+      }
     },
     "build_url_request": {
       "type": "proc",
