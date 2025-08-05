@@ -4,6 +4,7 @@ from tkinter import messagebox
 import json
 import copy
 import time
+import re
 from config_manager import ConfigManager
 from pygments import lex
 from pygments.lexers import PythonLexer
@@ -224,30 +225,49 @@ class WorkflowEditorFrame(BaseEditorFrame):
                 script_code = "\n".join(script_code_lines)
                 try: exec(script_code, {"api": api})
                 except Exception as e: print(f"Error executing GUI script '{script_name}': {e}")
+
+    # --- FIX START: Logic added to highlight invalid steps in red ---
     def refresh_steps_list(self):
         for widget in self.steps_frame.winfo_children(): widget.destroy()
         steps = self.data.get("steps", []); current_indent = 0; indent_char = "    "
         for i, step in enumerate(steps):
             agent_name = step.get('agent', 'Unknown')
-            agent_def = self.app_ref.config.get_agent_data(agent_name) or {}
-            gui_hints = agent_def.get("gui", {})
+            agent_def = self.app_ref.config.get_agent_data(agent_name)
+            
+            gui_hints = (agent_def or {}).get("gui", {})
             indent_modifier_before = gui_hints.get("indent_before", 0)
             current_indent = max(0, current_indent + indent_modifier_before)
+            
             step_frame = ctk.CTkFrame(self.steps_frame); step_frame.pack(fill="x", pady=2)
             step_frame.grid_columnconfigure(3, weight=1)
+            
             edit_btn = ctk.CTkButton(step_frame, text="Edit", width=60, command=lambda index=i: self.app_ref.open_step_editor(index)); edit_btn.grid(row=0, column=0, padx=5, pady=5)
             up_btn = ctk.CTkButton(step_frame, text="▲", width=30, command=lambda index=i: self.move_step(index, -1)); up_btn.grid(row=0, column=1, padx=(5,0), pady=5)
             down_btn = ctk.CTkButton(step_frame, text="▼", width=30, command=lambda index=i: self.move_step(index, 1)); down_btn.grid(row=0, column=2, padx=(1,5), pady=5)
+            
             label_text = f"{indent_char * current_indent}{i}. {agent_name}"
-            ctk.CTkLabel(step_frame, text=label_text).grid(row=0, column=3, padx=10, pady=5, sticky="w")
+            step_label = ctk.CTkLabel(step_frame, text=label_text)
+            step_label.grid(row=0, column=3, padx=10, pady=5, sticky="w")
+            
+            # If the agent definition was not found, highlight the label in red.
+            if not agent_def:
+                step_label.configure(text_color="red", text=f"{label_text} (not found)")
+            
             remove_btn = ctk.CTkButton(step_frame, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", command=lambda index=i: self.remove_step(index)); remove_btn.grid(row=0, column=4, padx=5, pady=5)
+            
             indent_modifier_after = gui_hints.get("indent_after", 0)
             current_indent = max(0, current_indent + indent_modifier_after)
+    # --- FIX END ---
+            
     def get_data(self):
-        self.data['name'] = self.name_entry.get().strip()
-        self.data['help'] = self.help_text.get("1.0", "end-1c").strip()
-        self.data['inputs'] = self.inputs_frame.get_data(); self.data['optional_inputs'] = self.optionals_frame.get_data(); self.data['outputs'] = self.outputs_frame.get_data()
-        self.data['return_on_fail'] = self.fail_check_var.get(); return self.data
+        updated_data = copy.deepcopy(self.data)
+        updated_data['name'] = self.name_entry.get().strip()
+        updated_data['help'] = self.help_text.get("1.0", "end-1c").strip()
+        updated_data['inputs'] = self.inputs_frame.get_data()
+        updated_data['optional_inputs'] = self.optionals_frame.get_data()
+        updated_data['outputs'] = self.outputs_frame.get_data()
+        updated_data['return_on_fail'] = self.fail_check_var.get()
+        return updated_data
 
 # --- Editors for "proc" and "template" ---
 class ProcEditorFrame(BaseEditorFrame):
@@ -290,11 +310,17 @@ class ProcEditorFrame(BaseEditorFrame):
             updated_gui_data = modal.get_result()
             if updated_gui_data: self.data["gui"] = updated_gui_data
             elif "gui" in self.data: del self.data["gui"]
+
     def get_data(self):
-        self.data['name'] = self.name_entry.get().strip()
-        self.data['help'] = self.help_text.get("1.0", "end-1c").strip()
-        self.data['inputs'] = self.inputs_frame.get_data(); self.data['optional_inputs'] = self.optionals_frame.get_data(); self.data['outputs'] = self.outputs_frame.get_data()
-        self.data['function'] = self.func_name_entry.get(); self.data['function_def'] = self.func_def_text.get("1.0", "end-1c").strip(); return self.data
+        updated_data = copy.deepcopy(self.data)
+        updated_data['name'] = self.name_entry.get().strip()
+        updated_data['help'] = self.help_text.get("1.0", "end-1c").strip()
+        updated_data['inputs'] = self.inputs_frame.get_data()
+        updated_data['optional_inputs'] = self.optionals_frame.get_data()
+        updated_data['outputs'] = self.outputs_frame.get_data()
+        updated_data['function'] = self.func_name_entry.get()
+        updated_data['function_def'] = self.func_def_text.get("1.0", "end-1c").strip()
+        return updated_data
 
 class TemplateEditorFrame(BaseEditorFrame):
     def __init__(self, master, agent_name, agent_data, app_ref):
@@ -328,11 +354,16 @@ class TemplateEditorFrame(BaseEditorFrame):
         ctk.CTkLabel(tab, text="Prompt Template").grid(row=0, column=0, pady=(5,0))
         self.prompt_text = ctk.CTkTextbox(tab); self.prompt_text.insert("1.0", self.data.get("prompt", ""))
         self.prompt_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+
     def get_data(self):
-        self.data['name'] = self.name_entry.get().strip()
-        self.data['help'] = self.help_text.get("1.0", "end-1c").strip()
-        self.data['inputs'] = self.inputs_frame.get_data(); self.data['optional_inputs'] = self.optionals_frame.get_data(); self.data['outputs'] = self.outputs_frame.get_data()
-        self.data['prompt'] = self.prompt_text.get("1.0", "end-1c").strip(); return self.data
+        updated_data = copy.deepcopy(self.data)
+        updated_data['name'] = self.name_entry.get().strip()
+        updated_data['help'] = self.help_text.get("1.0", "end-1c").strip()
+        updated_data['inputs'] = self.inputs_frame.get_data()
+        updated_data['optional_inputs'] = self.optionals_frame.get_data()
+        updated_data['outputs'] = self.outputs_frame.get_data()
+        updated_data['prompt'] = self.prompt_text.get("1.0", "end-1c").strip()
+        return updated_data
 
 class JsonEditorFrame(BaseEditorFrame):
     def __init__(self, master, agent_name, agent_data, app_ref):
@@ -340,9 +371,17 @@ class JsonEditorFrame(BaseEditorFrame):
         ctk.CTkLabel(self, text="Raw JSON Editor", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=(10,0))
         self.textbox = ctk.CTkTextbox(self, font=("monospace", 12)); self.textbox.pack(fill="both", expand=True, padx=10, pady=10)
         self.textbox.insert("1.0", json.dumps(self.data, indent=2))
+        
     def get_data(self):
-        try: return json.loads(self.textbox.get("1.0", "end-1c"))
-        except json.JSONDecodeError as e: messagebox.showerror("JSON Error", f"Invalid JSON: {e}"); return None
+        try:
+            data = json.loads(self.textbox.get("1.0", "end-1c"))
+            data['name'] = self.agent_name
+            if 'type' not in data and 'type' in self.data:
+                data['type'] = self.data['type']
+            return data
+        except json.JSONDecodeError as e:
+            messagebox.showerror("JSON Error", f"Invalid JSON: {e}")
+            return None
 
 # --- Global Config Editor Modal ---
 class GlobalConfigEditorModal(ctk.CTkToplevel):
@@ -382,14 +421,13 @@ class App(ctk.CTk):
         self.create_agent_list_panel(); self.create_editor_panel(); self.create_modal_overlay(); self.refresh_agent_list(); self.show_welcome_message()
     def create_agent_list_panel(self):
         self.agent_list_frame = ctk.CTkFrame(self, width=320)
-        frame_bg_color = self.agent_list_frame.cget("fg_color") # <-- ADD THIS LINE
+        frame_bg_color = self.agent_list_frame.cget("fg_color")
         self.agent_list_frame.grid(row=0, column=0, rowspan=2, padx=10, pady=10, sticky="ns")
         self.agent_list_frame.grid_propagate(False)
         self.agent_list_frame.grid_rowconfigure(2, weight=1); self.agent_list_frame.grid_columnconfigure(0, weight=1)
         header_frame = ctk.CTkFrame(self.agent_list_frame, fg_color="transparent")
         header_frame.grid(row=0, column=0, padx=10, pady=(10, 5), sticky="ew"); header_frame.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(header_frame, text="Agents", font=ctk.CTkFont(size=20, weight="bold")).grid(row=0, column=0, sticky="w")
-        #ctk.CTkCheckBox(header_frame, text="", variable=self.show_hidden_agents_var, command=self.refresh_agent_list, width=20).grid(row=0, column=1, padx=(5,0))
         ctk.CTkCheckBox(header_frame, text="", variable=self.show_hidden_agents_var, command=self.refresh_agent_list, width=20, fg_color=frame_bg_color, hover_color=frame_bg_color, border_width=0).grid(row=0, column=1, padx=(0,0))
         
         add_menu = ctk.CTkOptionMenu(header_frame, width=120, values=["Workflow", "Proc", "Template"], command=self.add_new_agent)
@@ -447,12 +485,13 @@ class App(ctk.CTk):
         self.action_bar.grid(); self.save_btn.pack(side="right", padx=10, pady=10); self.cancel_btn.pack(side="right", padx=0, pady=10)
         agent_data = self.config.get_agent_data(self.current_agent_name)
         editor_class = {"workflow": WorkflowEditorFrame, "proc": ProcEditorFrame, "template": TemplateEditorFrame}.get(agent_data.get("type"), JsonEditorFrame)
-        self.editor_frame_instance = editor_class(self.editor_container, self.current_agent_name, agent_data, self)
+        self.editor_frame_instance = editor_class(self.editor_container, self.current_agent_name, copy.deepcopy(agent_data), self)
         self.editor_frame_instance.grid(row=0, column=0, sticky="nsew")
     def save_agent(self):
         if not self.editor_frame_instance or not self.current_agent_name: return
         updated_data = self.editor_frame_instance.get_data();
         if updated_data is None: return
+        
         new_name = updated_data.pop('name', self.current_agent_name)
         if not new_name: messagebox.showerror("Error", "Agent name cannot be empty."); return
         if new_name != self.current_agent_name:
@@ -471,14 +510,39 @@ class App(ctk.CTk):
     def open_global_config(self):
         modal = GlobalConfigEditorModal(self, self.config); self.wait_window(modal)
         if modal.saved: self.config.save(); self.show_toast("Global configuration saved successfully!")
+    
+    # --- FIX START: Logic added to show a popup on invalid agent edit attempts ---
     def open_step_editor(self, index):
         if not isinstance(self.editor_frame_instance, WorkflowEditorFrame): return
-        step_data = self.editor_frame_instance.data["steps"][index]
-        agent_def = self.config.get_agent_data(step_data.get("agent", ""))
-        self.show_overlay(); modal = StepEditorModal(self, index, step_data, agent_def); self.wait_window(modal); self.hide_overlay()
+
+        parent_workflow_data = self.editor_frame_instance.get_data()
+        if parent_workflow_data is None:
+            messagebox.showerror("Error", "Could not read current workflow data. Please check for errors.")
+            return
+
+        step_data = parent_workflow_data["steps"][index]
+        agent_name = step_data.get("agent", "")
+        agent_def = self.config.get_agent_data(agent_name)
+
+        # Check if the agent exists BEFORE opening the modal.
+        if not agent_def:
+            messagebox.showerror(
+                "Agent Not Found",
+                f"The agent '{agent_name}' used in step {index} could not be found.\n\n"
+                "It may have been renamed or deleted. Please correct the agent name in the workflow."
+            )
+            return  # Stop execution here
+
+        self.show_overlay()
+        modal = StepEditorModal(self, index, step_data, agent_def, parent_workflow_data)
+        self.wait_window(modal)
+        self.hide_overlay()
+        
         if modal.saved:
             self.editor_frame_instance.data["steps"][index] = modal.get_result()
             self.editor_frame_instance.refresh_steps_list()
+    # --- FIX END ---
+
     def show_toast(self, message):
         toast = ctk.CTkLabel(self, text=message, fg_color=("#333", "#555"), text_color="white", corner_radius=10, font=("", 14))
         toast.place(relx=0.5, rely=0.95, anchor="center"); toast.lift(); self.after(2500, toast.destroy)
@@ -492,66 +556,223 @@ class App(ctk.CTk):
 
 # --- Step Editor Modal Window ---
 class StepEditorModal(ctk.CTkToplevel):
-    def __init__(self, parent, index, step_data, agent_def):
-        super().__init__(parent); self.title(f"Edit Step {index}: {step_data.get('agent')}"); self.geometry("900x600")
-        self.editing_data = copy.deepcopy(step_data); self.agent_def = agent_def or {}
-        self.saved = False; self.param_entries = {}
-        self.grid_columnconfigure(1, weight=1); self.grid_rowconfigure(0, weight=1)
-        self.create_widgets(); self.transient(parent); self.grab_set()
+    # --- FIX START: Reverted signature to accept pre-validated agent_def ---
+    def __init__(self, parent, index, step_data, agent_def, parent_workflow_data=None):
+        super().__init__(parent)
+        self.title(f"Edit Step {index}: {step_data.get('agent')}")
+        self.geometry("1100x700")
+
+        self.agent_def = agent_def or {}
+    # --- FIX END ---
+
+        self.editing_data = copy.deepcopy(step_data)
+        self.step_index = index
+        self.parent_workflow_data = parent_workflow_data or {"inputs": [], "optional_inputs": [], "steps": []}
+        self.active_entry = None
+        self.available_vars = set()
+        
+        dummy_entry = ctk.CTkEntry(self)
+        self.default_border_color = dummy_entry.cget("border_color")
+        self.literal_border_color = "#0A477A"
+        dummy_entry.destroy()
+        
+        self._calculate_available_variables()
+
+        self.saved = False
+        self.param_entries = {}
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=2)
+        self.grid_rowconfigure(0, weight=1)
+        
+        self.create_widgets()
+        self.transient(parent)
+        self.grab_set()
+
+    def _calculate_available_variables(self):
+        self.available_vars.clear()
+        for var in self.parent_workflow_data.get('inputs', []): self.available_vars.add(var)
+        for var in self.parent_workflow_data.get('optional_inputs', []): self.available_vars.add(var)
+        for i in range(self.step_index):
+            step = self.parent_workflow_data['steps'][i]
+            for output_var in step.get('output', []):
+                self.available_vars.add(output_var)
+
+    def validate_entry_variables(self, entry_widget):
+        text = entry_widget.get()
+        found_vars = re.findall(r'\$(\w+)', text)
+        
+        if not text:
+            entry_widget.configure(border_color=self.default_border_color, border_width=1)
+            return
+        if not found_vars:
+            entry_widget.configure(border_color=self.literal_border_color, border_width=1)
+            return
+            
+        is_valid = all(var in self.available_vars for var in found_vars)
+        
+        if not is_valid:
+            entry_widget.configure(border_color="red", border_width=1)
+        else:
+            entry_widget.configure(border_color=self.default_border_color, border_width=1)
+
+    def set_active_entry(self, entry_widget):
+        self.active_entry = entry_widget
+
+    def append_variable_to_active_entry(self, var_name):
+        if self.active_entry:
+            cursor_pos = self.active_entry.index(ctk.INSERT)
+            variable_string = f"${var_name}"
+            if cursor_pos > 0 and self.active_entry.get() and self.active_entry.get()[cursor_pos-1] not in (' ', '('):
+                variable_string = " " + variable_string
+            self.active_entry.insert(cursor_pos, variable_string)
+            self.active_entry.focus()
+            self.validate_entry_variables(self.active_entry)
+
+    def populate_variable_selector(self):
+        def create_var_button(parent, var_name):
+            btn = ctk.CTkButton(parent, text=var_name, anchor="w", fg_color="gray",
+                                command=lambda v=var_name: self.append_variable_to_active_entry(v))
+            btn.pack(fill="x", padx=5, pady=2)
+
+        for var in sorted(list(self.parent_workflow_data.get('inputs', []))):
+            create_var_button(self.wf_req_inputs_frame, var)
+        for var in sorted(list(self.parent_workflow_data.get('optional_inputs', []))):
+            create_var_button(self.wf_opt_inputs_frame, var)
+
+        for i in range(self.step_index):
+            step = self.parent_workflow_data['steps'][i]
+            agent_name = step.get('agent', 'Unknown')
+            ctk.CTkLabel(self.step_outputs_frame, text=f"Step {i}: {agent_name}",
+                         font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(8, 2), padx=5)
+            for output_var in step.get('output', []):
+                create_var_button(self.step_outputs_frame, output_var)
+
     def create_widgets(self):
-        toolbox = ctk.CTkFrame(self, width=250); toolbox.grid(row=0, column=0, padx=10, pady=10, sticky="ns")
-        ctk.CTkLabel(toolbox, text="Optional Inputs", font=ctk.CTkFont(weight="bold")).pack(pady=5)
-        self.toolbox_scroll = ctk.CTkScrollableFrame(toolbox, fg_color="transparent"); self.toolbox_scroll.pack(fill="both", expand=True)
+        selector_frame = ctk.CTkFrame(self, width=300)
+        selector_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        selector_frame.grid_rowconfigure(0, weight=1); selector_frame.grid_columnconfigure(0, weight=1)
+        selector_tabs = ctk.CTkTabview(selector_frame)
+        selector_tabs.grid(row=0, column=0, sticky="nsew")
+
+        workflow_inputs_tab = selector_tabs.add("Workflow Inputs")
+        step_outputs_tab = selector_tabs.add("Step Outputs")
+
+        self.wf_req_inputs_frame = ctk.CTkScrollableFrame(workflow_inputs_tab, label_text="Required")
+        self.wf_req_inputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.wf_opt_inputs_frame = ctk.CTkScrollableFrame(workflow_inputs_tab, label_text="Optional")
+        self.wf_opt_inputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.step_outputs_frame = ctk.CTkScrollableFrame(step_outputs_tab, label_text="Available Outputs from Previous Steps")
+        self.step_outputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
         form = ctk.CTkFrame(self); form.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         form.grid_rowconfigure(0, weight=1); form.grid_columnconfigure(0, weight=1)
         self.params_frame = ctk.CTkScrollableFrame(form, label_text="Parameters & Outputs"); self.params_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        
         button_frame = ctk.CTkFrame(self); button_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
         ctk.CTkButton(button_frame, text="Cancel", command=self.cancel).pack(side="left", padx=10)
         ctk.CTkButton(button_frame, text="Save", command=self.save, fg_color="green").pack(side="right", padx=10)
-        self.refresh_all_forms()
-    def refresh_all_forms(self): self.refresh_params_form(); self.refresh_toolbox()
-    def refresh_toolbox(self):
-        for widget in self.toolbox_scroll.winfo_children(): widget.destroy()
-        master_optionals = set(self.agent_def.get("optional_inputs", [])); current_params = set(self.editing_data.get("params", {}).keys())
-        available = sorted(list(master_optionals - current_params))
-        for param in available: ctk.CTkButton(self.toolbox_scroll, text=f"+ {param}", fg_color="gray", command=lambda p=param: self.add_param_from_toolbox(p)).pack(fill="x", padx=5, pady=2)
+        
+        self.populate_variable_selector()
+        self.refresh_params_form()
+
+    def add_optional_param(self, param_name: str):
+        if param_name and "Add Optional" not in param_name:
+            self.editing_data.setdefault("params", {})[param_name] = ""
+            self.refresh_params_form()
+            
     def refresh_params_form(self):
         for widget in self.params_frame.winfo_children(): widget.destroy()
         self.param_entries.clear()
+
+        required_inputs = set(self.agent_def.get("inputs", []))
+        optional_inputs = set(self.agent_def.get("optional_inputs", []))
+        
+        self.editing_data.setdefault('params', {})
+        self.editing_data.setdefault('output', [])
+        
         ctk.CTkLabel(self.params_frame, text="Outputs", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=5)
-        for i, item in enumerate(self.editing_data.setdefault('output', [])):
-            entry = ctk.CTkEntry(self.params_frame); entry.insert(0, item); entry.pack(fill="x", padx=5, pady=2); self.param_entries[f'output_{i}'] = entry
-        ctk.CTkLabel(self.params_frame, text="Parameters (Key = Value)", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=5, pady=(10,0))
-        params = self.editing_data.setdefault("params", {})
-        for key, value in list(params.items()):
+        for i, item in enumerate(self.editing_data['output']):
+            entry = ctk.CTkEntry(self.params_frame); entry.insert(0, item); entry.pack(fill="x", padx=5, pady=2)
+            self.param_entries[f'output_{i}'] = entry
+
+        if required_inputs:
+            ctk.CTkLabel(self.params_frame, text="Required Parameters", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=5, pady=(15, 0))
+        for key in sorted(list(required_inputs)):
+            if key not in self.editing_data["params"]:
+                self.editing_data["params"][key] = f"${key}"
+            
+            value = self.editing_data["params"].get(key, "")
             param_frame = ctk.CTkFrame(self.params_frame, fg_color="transparent"); param_frame.pack(fill="x", pady=2)
-            is_required = key in self.agent_def.get("inputs", [])
-            if is_required: ctk.CTkLabel(param_frame, text=key, width=200).pack(side="left", padx=5)
-            else: key_entry = ctk.CTkEntry(param_frame, width=200); key_entry.insert(0, key); key_entry.pack(side="left", padx=5); self.param_entries[f'param_key_{key}'] = key_entry
-            value_entry = ctk.CTkEntry(param_frame); value_entry.insert(0, value); value_entry.pack(side="left", padx=5, expand=True, fill="x")
-            if not is_required:
-                remove_btn = ctk.CTkButton(param_frame, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", command=lambda k=key: self.remove_param(k)); remove_btn.pack(side="left", padx=5)
+            ctk.CTkLabel(param_frame, text=key, width=200).pack(side="left", padx=5)
+            
+            value_entry = ctk.CTkEntry(param_frame); value_entry.insert(0, value)
+            value_entry.pack(side="left", padx=5, expand=True, fill="x")
+            value_entry.bind("<FocusIn>", lambda event, entry=value_entry: self.set_active_entry(entry))
+            value_entry.bind("<KeyRelease>", lambda event, entry=value_entry: self.validate_entry_variables(entry))
             self.param_entries[f'param_val_{key}'] = value_entry
-        ctk.CTkButton(self.params_frame, text="+ Add Parameter", command=self.add_param).pack(pady=10, anchor="w", padx=5)
-    def add_param(self):
-        i = 0;
-        while f"new_param_{i}" in self.editing_data.get("params", {}): i+=1
-        self.editing_data.setdefault("params", {})[f"new_param_{i}"] = "new_value"; self.refresh_all_forms()
-    def add_param_from_toolbox(self, param_name): self.editing_data.setdefault("params", {})[param_name] = ""; self.refresh_all_forms()
+            self.validate_entry_variables(value_entry)
+
+        current_param_keys = set(self.editing_data["params"].keys())
+        optional_and_custom_keys = current_param_keys - required_inputs
+
+        if optional_and_custom_keys:
+            ctk.CTkLabel(self.params_frame, text="Optional / Custom Parameters", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=5, pady=(15, 0))
+
+        for key in sorted(list(optional_and_custom_keys)):
+            value = self.editing_data["params"].get(key, "")
+            param_frame = ctk.CTkFrame(self.params_frame, fg_color="transparent"); param_frame.pack(fill="x", pady=2)
+            
+            if key in optional_inputs:
+                ctk.CTkLabel(param_frame, text=key, width=200).pack(side="left", padx=5)
+            else:
+                key_entry = ctk.CTkEntry(param_frame, width=200); key_entry.insert(0, key); key_entry.pack(side="left", padx=5)
+                self.param_entries[f'param_key_{key}'] = key_entry
+
+            value_entry = ctk.CTkEntry(param_frame); value_entry.insert(0, value);
+            value_entry.pack(side="left", padx=5, expand=True, fill="x")
+            value_entry.bind("<FocusIn>", lambda event, entry=value_entry: self.set_active_entry(entry))
+            value_entry.bind("<KeyRelease>", lambda event, entry=value_entry: self.validate_entry_variables(entry))
+            self.param_entries[f'param_val_{key}'] = value_entry
+            self.validate_entry_variables(value_entry)
+
+            remove_btn = ctk.CTkButton(param_frame, text="X", width=30, fg_color="#D32F2F", hover_color="#B71C1C", command=lambda k=key: self.remove_param(k))
+            remove_btn.pack(side="left", padx=5)
+            
+        available_options = sorted(list(optional_inputs - current_param_keys))
+        if available_options:
+            placeholder = "Add Optional Input..."
+            option_menu = ctk.CTkOptionMenu(self.params_frame, values=[placeholder] + available_options, command=self.add_optional_param)
+            option_menu.set(placeholder)
+            option_menu.pack(pady=10, padx=5, anchor="w")
+
     def remove_param(self, key):
-        if key in self.editing_data.get("params", {}): del self.editing_data["params"][key]
-        self.refresh_all_forms()
+        required_inputs = set(self.agent_def.get("inputs", []))
+        if key in self.editing_data.get("params", {}) and key not in required_inputs:
+            del self.editing_data["params"][key]
+        self.refresh_params_form()
+        
     def get_form_data(self):
         new_outputs = []; new_params = {}
-        original_output_len = len(self.editing_data.get('output',[])); original_param_keys = list(self.editing_data.get("params", {}).keys())
-        for i in range(original_output_len): new_outputs.append(self.param_entries[f'output_{i}'].get())
-        for key in original_param_keys:
-            is_required = key in self.agent_def.get("inputs", [])
-            new_key = key if is_required else self.param_entries[f'param_key_{key}'].get()
-            new_val = self.param_entries[f'param_val_{key}'].get()
-            if not new_key: continue
-            new_params[new_key] = new_val
-        self.editing_data['output'] = new_outputs; self.editing_data['params'] = new_params
+        original_output_len = len(self.editing_data.get('output',[]))
+        for i in range(original_output_len): 
+            new_outputs.append(self.param_entries[f'output_{i}'].get())
+        
+        all_rendered_keys = {k.replace('param_val_', '') for k in self.param_entries if k.startswith('param_val_')}
+        
+        for key_ref in all_rendered_keys:
+            new_val = self.param_entries[f'param_val_{key_ref}'].get()
+            
+            if f'param_key_{key_ref}' in self.param_entries:
+                new_key = self.param_entries[f'param_key_{key_ref}'].get()
+            else:
+                new_key = key_ref
+            
+            if new_key:
+                new_params[new_key] = new_val
+
+        self.editing_data['output'] = new_outputs
+        self.editing_data['params'] = new_params
+        
     def save(self): self.get_form_data(); self.saved = True; self.destroy()
     def cancel(self): self.saved = False; self.destroy()
     def get_result(self): return self.editing_data

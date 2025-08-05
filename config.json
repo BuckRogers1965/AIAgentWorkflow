@@ -163,29 +163,14 @@
         {
           "agent": "convert_json_to_results",
           "params": {
-            "content": "$content"
+            "content": "$text_prompt"
           },
           "output": [
             "parts"
           ]
-        },
-        {
-          "agent": "create_comfy_payload",
-          "params": {
-            "prompt": "$prompt",
-            "negative_prompt": "$negative_prompt",
-            "sampler_name": "$sampler_name",
-            "steps": "$steps",
-            "cfg_scale": "$cfg_scale",
-            "height": "$height",
-            "width": "$width",
-            "seed": "$seed"
-          },
-          "output": [
-            "encoded_image"
-          ]
         }
-      ]
+      ],
+      "return_on_fail": 0
     },
     "agent_writing_agent_prompt": {
       "type": "template",
@@ -1205,7 +1190,7 @@
       ],
       "steps": [
         {
-          "agent": "build_google_url_header_request",
+          "agent": "build_google_url_request",
           "params": {
             "request": "$request",
             "api_key": "ENV_google_custom_search_api_key",
