@@ -721,6 +721,38 @@
         "encoded_data"
       ]
     },
+    "encode_decode": {
+      "type": "workflow",
+      "help": "Promoted from a block of steps in 'file_copy_b64_workflow'.",
+      "inputs": [
+        "file_content"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "decoded_data"
+      ],
+      "steps": [
+        {
+          "agent": "encode_base64",
+          "params": {
+            "data": "$file_content"
+          },
+          "output": [
+            "encoded_data"
+          ]
+        },
+        {
+          "agent": "decode_base64",
+          "params": {
+            "data": "$encoded_data"
+          },
+          "output": [
+            "decoded_data"
+          ]
+        }
+      ],
+      "return_on_fail": 1
+    },
     "enhanced_transition_foreshadowing_agent": {
       "type": "template",
       "inputs": [
@@ -979,7 +1011,27 @@
             "success"
           ]
         }
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "input_filename": "hello.world",
+          "output_filename": "hello.world2"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "success",
+            "assertion_type": "Regex Match",
+            "expected_value": "Successfully wrote data"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "return_on_fail": 0
     },
     "file_copy_workflow": {
       "type": "workflow",
@@ -2114,6 +2166,38 @@
       },
       "help": "Generates a detailed essay outline based on a given topic and thesis."
     },
+    "promoted_workflow_8245": {
+      "type": "workflow",
+      "help": "Promoted from a block of steps in 'file_copy_b64_workflow'.",
+      "inputs": [
+        "file_content"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "decoded_data"
+      ],
+      "steps": [
+        {
+          "agent": "encode_base64",
+          "params": {
+            "data": "$file_content"
+          },
+          "output": [
+            "encoded_data"
+          ]
+        },
+        {
+          "agent": "decode_base64",
+          "params": {
+            "data": "$encoded_data"
+          },
+          "output": [
+            "decoded_data"
+          ]
+        }
+      ],
+      "return_on_fail": true
+    },
     "rag_annotate": {
       "type": "proc",
       "help": "upgrade an llm prompt with RAG upgrades",
@@ -2514,20 +2598,20 @@
         {
           "agent": "loop_start",
           "params": {
-            "step_index": "$step_index",
-            "loop_max": "$list_length"
+            "loop_max": "$list_length",
+            "step_index": "$step_index"
           },
           "output": [
-            "loop_start_1",
-            "loop_max_1",
-            "loop_idx_1"
+            "loop_start_3",
+            "loop_max_3",
+            "loop_idx_3"
           ]
         },
         {
           "agent": "emit_part_by_index",
           "params": {
-            "parts": "$chapter_list",
-            "index": "$loop_idx_1"
+            "index": "$loop_idx_3",
+            "parts": "$chapter_list"
           },
           "output": [
             "chapter_part"
@@ -2536,10 +2620,10 @@
         {
           "agent": "emit_part_by_index_offset",
           "params": {
-            "parts": "$chapter_summary_list",
-            "index": "$loop_idx_1",
-            "offset": 1,
-            "out_of_range_part": "You are working on the last chapter. Make sure there is a good ending."
+            "index": "$loop_idx_3",
+            "offset": "1",
+            "out_of_range_part": "You are working on the last chapter. Make sure there is a good ending.",
+            "parts": "$chapter_summary_list"
           },
           "output": [
             "chapter_summary_part"
@@ -2577,9 +2661,9 @@
         {
           "agent": "loop_end",
           "params": {
-            "step_index": "$loop_start_1",
-            "loop_max": "$loop_max_1",
-            "loop_index": "$loop_idx_1"
+            "loop_max": "$loop_max_3",
+            "loop_index": "$loop_idx_3",
+            "step_index": "$loop_start_3"
           },
           "output": [
             "loop_idx_1"
