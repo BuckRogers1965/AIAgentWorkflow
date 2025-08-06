@@ -1,122 +1,92 @@
-# AIAgentWorkflow
-A python based AI Agent Workflow system that is dynamic and highly configurable. 
 
-Just added a GUI to edit the config file (here.)[https://github.com/BuckRogers1965/AIAgentWorkflow/tree/main/editor]
+# Dynamic Agent Workflow: A Generative Development Platform
 
-This project started after I installed the Ollama AI program and put a workflow on my local network.  I downloaded a shell based example that used curl to ask the ai api "Why is the sky blue."  This quickly turned into a python program that created agents by filling out templates using inputs from either variables I set, or the output from other agents. 
+This project is a complete, high-performance ecosystem for creating, managing, and executing automated workflows. It is built on a simple yet profound architectural principle: **complexity should be emergent, not designed.**
 
-I noticed that I was duplicating a lot of code to generate these requests as I let the data pass through all the agents one after the other.  So I set out to fix that. I wrote a program to duplicate the simple python program in a more robust and flexible way that was ran from a config file. So now I could keep the program the same and configure the inputs and outputs using a simple configuration file. 
+By starting with a tiny, stable, and universal core engine, the platform allows for the organic growth of sophisticated capabilities, including a full graphical IDE, an integrated testing framework, and an autonomous job dispatching service. The entire system is driven by a `config.json` file that centralizes not just the logic, but the documentation, tests, and even the UI behavior of every component.
 
-I only had api agents at that time. API agents combined the templating, the connecting to an api on the network, and the processing of the reply.  I saw where I could refactor the program to make the core very light weight, flexible, and super powerful by creating proc agents that embedded their function into the configuration file and duplicating the initial api agents as just a handful of agents. I implemented dynamic function creation from an entry in the config file in just a few lines of code. Then I chopped out 500 lines of code from the core program, half the program at that time. That is when the current system came into being.  
+This is not just a workflow tool; it is a case study in **Emergent Development**, where a powerful architecture becomes a generative force, allowing a single developer to build an entire application ecosystem in days, not months.
 
-There are just three agent types.  Templates, Procs, and Workflows. Templates are more limited than procs in function, but they have full access to all the variables in the system. I implement agents in terms of blocks of text that have parts inserted at different places.  Procs are super powerful because they are python functions, so they can do anything that python can do.  But they are limited in that they can only see what is passed into them as inputs from the step variables. 
+## Core Philosophy: The Fractal Agent
 
-Workflows also have inputs and outputs, just like templates and procs.  You can write agents and combine those agents into a workflow. The steps in a workflow map all the inputs and outputs between the steps. That workflow is an agent that includes other agents.  Because the functions you write and put into the proc can do anything, that means you can write agents that connect to any data source and send and receive data in the format you want.  I am already connecting to local ollama, stable diffusion, and out to cloud apis. It just works. 
+The entire system is built on a single, powerful axiom: **An agent IS a workflow, and a workflow IS an agent.**
 
-Each workflow has its own results area, think of this as a scratch pad. The inputs are read from this scratch pad or the scoped variables such as from the command line options. The outputs from a step are written to this scratch pad.  If you nest a workflow inside a workflow it gets its own results area, and only the inputs to that step are available to it.  The whole system is basically just a Turing machine with nested Turing machines. 
+There are only three fundamental primitives:
+1.  **`proc`**: An atomic unit of action (any Python function).
+2.  **`template`**: An atomic unit of data transformation (string formatting).
+3.  **`workflow`**: A composite unit that orchestrates other agents.
 
-Anything can also return one or more results that are written into the results area for use by agents later. These results can be inputs to any other step in the workflow.  The program control flow (step_index) is also just a variable in this results area.  So that means you can implement any control flow you want.  No limits. I initially built the loop start and loop end agents as two different agent types and that is when I put the step_index into the results so the agents could control their own program flow, and reimplemented the loop agents as simple proc agents that communicate using results. 
+Crucially, all three share the exact same interface (`inputs` -> `outputs`). This **fractal self-similarity** is the key to the system's power. It means any sequence of steps can be seamlessly encapsulated and refactored into a new, reusable workflow agent, allowing for infinite, nested composition.
 
-There is a status return for everything, it also just goes into the results scratch pad. The next step can read the status of the previous step and change the flow of execution.  A workflow can also terminate if any status is a fail just by setting a flag in that workflow.
+## The Ecosystem: How The Pieces Fit Together
 
-One of the more powerful features is that every agent and workflow is exposed to the command line interface. It automatically requires the proper inputs to be passed in on the command line and returns the results to stdout. All the configurations and input checks are automatic. 
+This repository is not just one program; it's a collection of integrated services that all operate on the central `config.json` file.
 
-The latest update I made to the system is using environmental variables for secrets in the config file that are only seen by the internals of the proc agent. And I created optional parameters for a few new cloud api agents. 
+```
+.
+├── config.json                 # <<< The single source of truth for the entire system
+│
+├── dynamic_workflows_agents.py # <<< The Core Engine (Command-Line Executor)
+│
+├── editor/                     # <<< The IDE (Visual Development Environment)
+│   ├── editor_app.py           # The main GUI application to visually build and edit agents.
+│   └── ...
+│
+├── unit_testing/               # <<< The QA Service
+│   └── test_runner.py          # A command-line tool to run all agent tests and generate a report.
+│
+├── service_demos/              # <<< The Automation & Service Layer
+│   ├── queue/                  # An advanced, autonomous job dispatcher service.
+│   └── ...
+│
+└── ... (docs, examples, utilities)
+```
 
-This program came together in just a month's time. I was amazed at how fast the program evolved.  
+### 1. The Core Engine (`dynamic_workflows_agents.py`)
 
----
+This is the heart of the platform. It's a lightweight, high-performance Python script that can execute any agent or workflow defined in `config.json` directly from the command line.
 
-To show you how simple these configs are:
+*   **Function:** Parses `config.json`, builds a command-line interface on the fly for any agent, and executes the requested workflow.
+*   **Key Feature:** The `exec_agent` function provides a unified entry point that transparently promotes simple `proc` and `template` agents into executable workflows, enforcing the core "fractal agent" philosophy.
 
-This is a proc agent with embeded code:
+### 2. The IDE (`editor/`)
 
-    "read_file": {
-            "type": "proc",
-            "help": "Reads content from a file",
-            "function": "read_file",
-            "function_def": "def read_file(file_name: str,output:list) -> bytes:\n\twith open(file_name, 'rb') as f:\n\t\treturn f.read(), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
-            "inputs": [ "file_name" ],
-            "optional_inputs": [],
-            "outputs": [ "file_content" ]
-        },
+This is the visual front-end for the entire ecosystem. It's a full-featured Integrated Development Environment (IDE) for creating, editing, testing, and managing your agents.
 
-This is a template:
+*   **Function:** Provides a rich, graphical interface to manipulate `config.json`.
+*   **Key Features:**
+    *   **Visual Workflow Builder:** Drag-and-drop steps to build workflows.
+    *   **"Promote to Workflow":** The killer feature. Select any block of steps and automatically refactor them into a new, reusable workflow agent.
+    *   **Integrated "Run & Test" Modal:** Execute any agent directly from the IDE and create, save, and run unit tests on the fly.
 
-    "echo": {
-            "type": "template",
-            "help": "echo input to output",
-            "prompt": "{input}",
-            "inputs": [ "input" ],
-            "optional_inputs": [],
-            "outputs": [ "output" ]
-        }
+### 3. The QA Service (`unit_testing/test_runner.py`)
 
-This is a simple workflow, it gets an idea and turns it into a stable diffusion prompt using text completion, and has stable diffusion create an image, saving a png file:
+This is the automated quality assurance framework for the platform. It provides a way to validate the correctness and reliability of every agent in your library at once.
 
-        "image_agent_wf": {
-            "type": "workflow",
-            "help": "Generate a prompt and create an image.",
-            "inputs": [
-                "topic",
-                "negative_prompt",
-                "filename"
-            ],
-            "optional_inputs": [],
-            "outputs": [
-                "success"
-            ],
-            "prompt": "{prompt}",
-            "steps": [
-                {
-                    "agent": "image_prompt_generator",
-                    "params": {
-                        "topic": "$topic"
-                    },
-                    "output": [ "image_prompt" ]
-                },
-                {
-                    "agent": "get_ollama_response",
-                    "params": {
-                        "prompt": "$image_prompt"
-                    },
-                    "output": [ "image_prompts" ]
-                },
-                {
-                    "agent": "get_sd_response",
-                    "params": {
-                        "prompt": "$image_prompts",
-                        "negative_prompt ": "$negative_prompt"
-                    },
-                    "output": [ "base64_image" ]
-                },
-                {
-                    "agent": "decode_base64",
-                    "params": {
-                        "data": "$base64_image"
-                    },
-                    "output": [ "decoded_data" ]
-                },
-                {
-                    "agent": "write_file",
-                    "params": {
-                        "file_name": "$filename",
-                        "file_content": "$decoded_data"
-                    },
-                    "output": ["success" ]
-                }
-            ]
-        },
+*   **Function:** Scans `config.json` for all agents that have `run_config` test definitions, executes them, and validates the results.
+*   **Key Feature:** Generates a professional, self-contained HTML report that details the pass/fail status of every test, providing deep diagnostic information for any failures.
 
-One of the things that really helps when building workflows is to create smaller workflows and test them, then combine those into higher level workflows. In the above workflow example, the get ollama response and get sd response are both nested workflows.  
+### 4. The Automation Layer (`service_demos/`)
 
-To Do: 
+This demonstrates how to use the core engine as the heart of long-running, autonomous services. The `queue/` directory contains a sophisticated job dispatching system.
 
-- [ ] GUI
-- [ ] Sandbox the dynamic functions to ensure they are safe.
-- [ ] Set it up so the program can accept inputs from multiple config files, so you can have a system config file, and a config file with works in progress. 
-- [ ] Collaborate with others to build out 1000's of agents to do everything and connect to everything.
+*   **Function:** Watches directories for new job files, adds them to a queue, and uses a pool of workers to execute the requested workflows via the core engine.
+*   **Key Feature:** Shows how the platform can be used for asynchronous, event-driven automation, transforming it from a simple tool into a true automation fabric.
 
+## Getting Started
 
+To get started with the platform, all essential components must be in the same root directory.
 
+1.  **Core Files:** The central `config.json` file and the `dynamic_workflows_agents.py` engine are the bare minimum required for command-line execution.
+2.  **Running the IDE:** To use the visual editor, navigate into the `editor/` directory and run the `editor_app.py` script. It will automatically load and modify the `config.json` file from the parent directory.
+    ```bash
+    cd editor
+    python editor_app.py
+    ```
+3.  **Running Tests:** To run the entire test suite for your configured agents, use the `test_runner.py` script from the `unit_testing/` directory.
+    ```bash
+    cd unit_testing
+    python test_runner.py --config ../config.json
+    ```
 
+This project is a living demonstration of how a commitment to architectural simplicity can lead to the emergent creation of a powerful and sophisticated software ecosystem. Welcome.
