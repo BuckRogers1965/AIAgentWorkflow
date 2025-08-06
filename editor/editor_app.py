@@ -20,12 +20,11 @@ from workflow_editor import WorkflowEditorFrame
 # --- CORE LIBRARY IMPORTS ---
 try:
     import dynamic_workflows_agents
-    from dynamic_workflows_agents import exec_workflow, create_temp_workflow, setup_depth_manager
+    from dynamic_workflows_agents import exec_agent, create_temp_workflow, setup_depth_manager
 except ImportError:
     messagebox.showerror("Import Error", "Could not import the core workflow engine from 'dynamic_workflows_agents.py'. The 'Run' feature will be disabled.")
     dynamic_workflows_agents = None
-    def exec_workflow(**kwargs): return ({}, {"status":{"value":-1, "reason":"Core library not found"}})
-    def create_temp_workflow(**kwargs): return {"error": "Core library not found"}
+    def exec_agent(**kwargs): return ({}, {"status":{"value":-1, "reason":"Core library not found"}})
     def setup_depth_manager(**kwargs): pass
 
 # --- UTILITY FUNCTION ---
@@ -670,9 +669,6 @@ class RunAgentModal(ctk.CTkToplevel):
         temp_config['agents'][self.agent_name] = self.agent_data
         setup_depth_manager(temp_config)
         agent_to_run = self.agent_data
-        if self.agent_data.get('type') != 'workflow':
-            agent_to_run = create_temp_workflow(self.agent_name, self.agent_data, temp_config, workflow_inputs)
-            agent_to_run['return_on_fail'] = True
         if not agent_to_run: messagebox.showerror("Error", "Could not prepare agent for execution."); return
         log_stream = io.StringIO()
         ui_log_handler = logging.StreamHandler(log_stream)
@@ -683,7 +679,7 @@ class RunAgentModal(ctk.CTkToplevel):
         root_logger.setLevel(getattr(logging, self.log_level_var.get(), logging.INFO))
         final_result_tape, final_status = {}, {"status": {"value": -99, "reason": "Execution did not run"}}
         try:
-            final_result_tape, final_status = exec_workflow(workflow=agent_to_run, config=temp_config, cli_args=workflow_inputs, results={})
+            final_result_tape, final_status = exec_agent(agent=agent_to_run, agent_name=self.agent_name, config=temp_config, cli_args=workflow_inputs, results={})
         except Exception as e:
             final_result_tape = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
             logging.exception("Workflow execution failed")

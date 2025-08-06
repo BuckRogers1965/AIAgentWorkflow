@@ -18,7 +18,7 @@ It demonstrates the core pattern required for "headless" execution:
   4. Setting up a dedicated logging system for the host application.
   5. Manually preparing the agent and input data, simulating what a network
      listener would do with an incoming request payload.
-  6. Calling the exec_workflow() function directly with in-memory objects.
+  6. Calling the exec_agent() function directly with in-memory objects.
   7. Processing the results, which in a real service would be serialized and
      returned to a client.
 
@@ -68,8 +68,7 @@ This foundational script can be extended to create robust, scalable services:
 
 # Import the necessary functions from the workflow engine
 from dynamic_workflows_agents import (
-    exec_workflow, 
-    create_temp_workflow, 
+    exec_agent, 
     setup_depth_manager
 )
 
@@ -112,14 +111,7 @@ def get_agent_for_execution(agent_name: str, agent_inputs: dict, config: dict):
         logging.error(f"Agent '{agent_name}' not found in configuration.")
         return None
 
-    if agent_config.get('type') != 'workflow':
-        logging.info(f"Agent '{agent_name}' is a simple type, promoting to temporary workflow.")
-        agent_to_run = create_temp_workflow(agent_name, agent_config, config, agent_inputs)
-    else:
-        logging.info(f"Agent '{agent_name}' is a workflow, using directly.")
-        agent_to_run = agent_config
-        
-    return agent_to_run
+    return agent_config
 
 import time
 
@@ -171,8 +163,9 @@ def main_server_test():
         for i in range(num_runs):
             results_tape = {} 
             
-            final_result, status = exec_workflow(
-                workflow=agent_to_execute,
+            final_result, status = exec_agent(
+                agent=agent_to_execute,
+                agent_name=agent_name_to_run,
                 config=config,
                 cli_args=workflow_inputs,
                 results=results_tape

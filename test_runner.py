@@ -12,7 +12,7 @@ import copy
 # --- CORE LIBRARY IMPORTS ---
 try:
     import dynamic_workflows_agents
-    from dynamic_workflows_agents import exec_workflow, create_temp_workflow, setup_depth_manager
+    from dynamic_workflows_agents import exec_agent, setup_depth_manager
 except ImportError:
     print("FATAL ERROR: Could not import the core workflow engine from 'dynamic_workflows_agents.py'.")
     print("Please ensure this script is in the same directory as the core library.")
@@ -224,11 +224,11 @@ class TestRunner:
             temp_config.get('workflow_settings', {}).get('log_text_limit', 500)
         )
         
-        agent_to_run = None
-        if agent_data.get('type') != 'workflow':
-            agent_to_run = create_temp_workflow(agent_name, agent_data, temp_config, workflow_inputs)
-        else:
-            agent_to_run = agent_data
+        #agent_to_run = None
+        #if agent_data.get('type') != 'workflow':
+            #agent_to_run = create_temp_workflow(agent_name, agent_data, temp_config, workflow_inputs)
+        #else:
+            #agent_to_run = agent_data
 
         log_stream = io.StringIO()
         ui_log_handler = logging.StreamHandler(log_stream)
@@ -240,9 +240,9 @@ class TestRunner:
         root_logger.addHandler(ui_log_handler)
         
         final_result_tape, final_status = {}, {"status": {"value": -99, "reason": "Execution did not run"}}
+        #print (agent_data, agent_name)
         try:
-            final_result_tape, final_status = exec_workflow(workflow=agent_to_run, config=temp_config, cli_args=workflow_inputs, results={})
-            print (f"***** ****** ******* ******* {final_status}")
+            final_result_tape, final_status = exec_agent(agent_data, agent_name, config=temp_config, cli_args=workflow_inputs, results={})
         except Exception as e:
             final_result_tape = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
             logging.exception("Workflow execution failed")

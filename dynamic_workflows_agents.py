@@ -403,6 +403,12 @@ def exec_workflow(workflow: Dict[str, Any], config: Dict[str, Any], cli_args: Di
         
         return get_final_results(results, result, workflow['outputs']), {"status": {"value": 0, "reason": "Success"}}
 
+def exec_agent(agent: Dict[str, Any], agent_name: str, config: Dict[str, Any], cli_args: Dict[str, Any],results)->bytes:
+    # If the agent has no steps, promote it to a temporary workflow
+    if not agent.get('type') in ['workflow']:
+        agent = create_temp_workflow(agent_name, agent, config, cli_args)
+    return  exec_workflow(agent, config, cli_args, results)
+
 '''    ==== ==== main setup section === ===    '''
 def setup_logging(verbose_level, log_server=None):
     root_logger = logging.getLogger()
@@ -438,8 +444,9 @@ def create_temp_workflow(agent_name, agent_config, config, cli_args):
     logging.info(f"Creating temporary workflow agent for agent: {agent_name}")
     logging.debug(f"Agent config: {agent_config}")
 
-    singleton = config['agents']['singleton']
-    temp_workflow = json.loads(json.dumps(singleton))  # Deep copy
+    # creating a temp workflow to promote an agent that is not a workflow to be a workflow
+    temp_workflow = {'type': 'workflow', 'help': 'A singleton entry to allow agents to execute.', 'return_on_fail': 1, 'inputs': [], 'optional_inputs': [], 'outputs': ['image'], 'prompt': '{prompt}', 'steps': [{'agent': '{agent}', 'host': 'stable_diffusion', 'model': '', 'api_call': 'prompting', 'params': {'topic': '$CLI_topic', 'thesis': '$CLI_thesis', 'essay': '$fact_checked_essay', 'tone': '$CLI_tone'}, 'output': ['results']}]}
+
     temp_workflow['steps'][0]['agent'] = agent_name
     temp_workflow['steps'][0]['params'] = {input_name: f"${input_name}" for input_name in agent_config['inputs']}
     temp_workflow['steps'][0]['output'] = agent_config['outputs']
@@ -505,10 +512,6 @@ def config_app():
                 print(f"    Outputs: {', '.join(agent['outputs'])}")
         sys.exit()
     
-    if args.agent == 'singleton':
-        print("Error: 'singleton' is not a valid agent.")
-        sys.exit()
-
     agent_config = config['agents'].get(args.agent)
     if not agent_config:
         print(f"Error: '{args.agent}' is not a valid agent.")
@@ -530,13 +533,7 @@ def config_app():
     # Only add actual entries that appeared on the command line.
     cli_args = {k: v for k, v in vars(args).items() if v is not None}
 
-    if not agent_config.get('type') in ['workflow']:
-        # If the agent has no steps, promote it to a temporary workflow
-        agent = create_temp_workflow(args.agent, agent_config, config, cli_args)
-    else:
-        agent = agent_config
-
-    return agent, config, cli_args, args.agent
+    return agent_config, config, cli_args, args.agent
 def setup_depth_manager(config):
     global depth_manager
 
@@ -560,7 +557,7 @@ def main():
 
     try:
         logging.info(f"Starting execution of workflow: {agent_name}")
-        result, status = exec_workflow(agent, config, cli_args, results)
+        result, status = exec_agent(agent, agent_name, config, cli_args, results)
         if isinstance(result, dict):
             for key, value in result.items():
                 if isinstance(value, bytes):
