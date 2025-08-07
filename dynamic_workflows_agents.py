@@ -296,6 +296,10 @@ def format_time_interval(elapsed_time):
     return formatted_time
 
 def validate_workflow(workflow: Dict[str, Any], config: Dict[str, Any]):
+    # Check if the in-memory copy has already been blessed as valid.
+    if workflow.get("_is_validated", False):
+        return  # Skip validation entirely.
+
     spacing = depth_manager.get_spacing()
     logging.info(f"{spacing}Starting workflow validation")
     errors = []
@@ -330,7 +334,7 @@ def validate_workflow(workflow: Dict[str, Any], config: Dict[str, Any]):
 
         # Validate output existence (but not its specific value)
         if 'output' not in step:
-            errors.append(f"Step {i+1} ({agent_name}): Missing 'output' definition.")
+            errors.append(f"{spacing}Step {i+1} ({agent_name}): Missing 'output' definition.")
         else:
             step_outputs = step['output'] if isinstance(step['output'], list) else [step['output']]
             outputs.update(step_outputs)
@@ -338,17 +342,13 @@ def validate_workflow(workflow: Dict[str, Any], config: Dict[str, Any]):
         # Validate agent type
         agent_type = agent_config.get('type')
         if agent_type not in ['template', 'proc', 'workflow', 'step']:
-            errors.append(f"Step {i+1} ({agent_name}): Invalid agent type '{agent_type}'.")
+            errors.append(f"{spacing}Step {i+1} ({agent_name}): Invalid agent type '{agent_type}'.")
 
         # Specific checks for non-workflow agents
         if agent_type == 'template' and 'prompt' not in agent_config:
-            errors.append(f"Step {i+1} ({agent_name}): Template agent missing 'prompt' definition.")
+            errors.append(f"{spacing}Step {i+1} ({agent_name}): Template agent missing 'prompt' definition.")
         elif agent_type == 'proc' and ('function' not in agent_config or 'function_def' not in agent_config):
-            errors.append(f"Step {i+1} ({agent_name}): Proc agent missing 'function' or 'function_def'.")
-
-        # For workflow agents, we don't perform additional output checks
-
-    # We no longer check if all workflow outputs are produced by steps
+            errors.append(f"{spacing}Step {i+1} ({agent_name}): Proc agent missing 'function' or 'function_def'.")
 
     if errors:
         for error in errors:
@@ -359,7 +359,10 @@ def validate_workflow(workflow: Dict[str, Any], config: Dict[str, Any]):
         for warning in warnings:
             logging.warning(warning)
 
-    logging.info(f"{spacing}Workflow validation completed successfully.")
+    # If we reach here, validation was successful. Bless the in-memory copy.
+    workflow["_is_validated"] = True
+    logging.info(f"{spacing}Workflow validation completed successfully and has been blessed.")
+
 def exec_workflow(workflow: Dict[str, Any], config: Dict[str, Any], cli_args: Dict[str, Any],results)->bytes:
     with depth_manager.step() as (depth, spacing):
     
