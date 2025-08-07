@@ -1,3 +1,5 @@
+# --- START OF FILE test_runner.py ---
+
 import json
 import argparse
 import logging
@@ -8,17 +10,61 @@ import time
 import operator
 from functools import reduce
 import copy
+import sys
+import os
 
-# --- CORE LIBRARY IMPORTS ---
+# --- COMMAND-LINE ARGUMENT PARSING & VALIDATION ---
+# This is the ONLY section that is different from your original file.
+
+# 1. DEFINE THE PARSER
+parser = argparse.ArgumentParser(
+    description="Agent Workflow Test Runner. Scans config.json for agents with saved unit tests and executes them, generating an HTML report.",
+    formatter_class=argparse.RawTextHelpFormatter
+)
+parser.add_argument(
+    '--config',
+    default='config.json',
+    help='Path to the configuration file (default: config.json)'
+)
+parser.add_argument(
+    '--lib-path',
+    help='Path to the directory containing the dynamic_workflows_agents.py core library.'
+)
+parser.add_argument(
+    '--loglevel',
+    default='INFO',
+    choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+    help="""Set the logging level for capturing logs on FAILED tests.
+- DEBUG: Most verbose, shows all steps.
+- INFO: Shows standard execution flow (default).
+- WARNING: Shows only warnings and errors.
+- ERROR: Shows only fatal errors."""
+)
+args = parser.parse_args()
+
+# 2. VALIDATE CONFIG FILE PATH
+if not os.path.isfile(args.config):
+    print(f"FATAL ERROR: Configuration file not found at '{os.path.abspath(args.config)}'.\n")
+    parser.print_help()
+    exit(1)
+
+# 3. PREPARE LIBRARY PATH
+if args.lib_path:
+    sys.path.insert(0, os.path.abspath(args.lib_path))
+
+# 4. IMPORT CORE LIBRARY WITH CORRECT ERROR HANDLING
 try:
     import dynamic_workflows_agents
     from dynamic_workflows_agents import exec_agent, setup_depth_manager
 except ImportError:
-    print("FATAL ERROR: Could not import the core workflow engine from 'dynamic_workflows_agents.py'.")
-    print("Please ensure this script is in the same directory as the core library.")
+    print("FATAL ERROR: Could not import the core workflow engine from 'dynamic_workflows_agents.py'.\n")
+    parser.print_help()
     exit(1)
 
-# --- UTILITY CLASSES AND FUNCTIONS ---
+# --- END OF MODIFIED SECTION ---
+
+
+# --- UTILITY CLASSES AND FUNCTIONS (UNCHANGED) ---
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, bytes):
@@ -34,7 +80,7 @@ def get_nested(data, key_str):
     except (KeyError, TypeError, AttributeError):
         return None
 
-# --- HTML REPORT GENERATOR ---
+# --- HTML REPORT GENERATOR (UNCHANGED) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -224,12 +270,6 @@ class TestRunner:
             temp_config.get('workflow_settings', {}).get('log_text_limit', 500)
         )
         
-        #agent_to_run = None
-        #if agent_data.get('type') != 'workflow':
-            #agent_to_run = create_temp_workflow(agent_name, agent_data, temp_config, workflow_inputs)
-        #else:
-            #agent_to_run = agent_data
-
         log_stream = io.StringIO()
         ui_log_handler = logging.StreamHandler(log_stream)
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
@@ -240,7 +280,6 @@ class TestRunner:
         root_logger.addHandler(ui_log_handler)
         
         final_result_tape, final_status = {}, {"status": {"value": -99, "reason": "Execution did not run"}}
-        #print (agent_data, agent_name)
         try:
             final_result_tape, final_status = exec_agent(agent_data, agent_name, config=temp_config, cli_args=workflow_inputs, results={})
         except Exception as e:
@@ -259,12 +298,10 @@ class TestRunner:
             output_variable = test["output_variable"]
             actual_value = None
             
-            # --- START OF THE REAL, SIMPLER FIX ---
             if output_variable == 'status.value':
-                actual_value = actual_value = final_status.get('status', {}).get('value')
+                actual_value = final_status.get('status', {}).get('value')
             else:
                 actual_value = get_nested(final_result_tape, output_variable)
-            # --- END OF THE REAL, SIMPLER FIX ---
 
             expected_value = test["expected_value"]
             assertion_type = test["assertion_type"]
@@ -307,7 +344,6 @@ class TestRunner:
         })
 
     def generate_report(self):
-        # ... (HTML generation is unchanged) ...
         results_html = ""
         for result in sorted(self.results, key=lambda x: (not x['passed_all'], x['agent_name'])):
             status_class = "pass" if result['passed_all'] else "fail"
@@ -368,28 +404,6 @@ class TestRunner:
         print(f"Summary: {self.stats['passed']} passed, {self.stats['failed']} failed out of {self.stats['total']} tests.")
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Agent Workflow Test Runner. Scans config.json for agents with saved unit tests and executes them, generating an HTML report.",
-        formatter_class=argparse.RawTextHelpFormatter
-    )
-    parser.add_argument(
-        '--config',
-        default='config.json',
-        help='Path to the configuration file (default: config.json)'
-    )
-    parser.add_argument(
-        '--loglevel',
-        default='INFO',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-        help="""Set the logging level for capturing logs on FAILED tests.
-- DEBUG: Most verbose, shows all steps.
-- INFO: Shows standard execution flow (default).
-- WARNING: Shows only warnings and errors.
-- ERROR: Shows only fatal errors."""
-    )
-    
-    args = parser.parse_args()
-    
     runner = TestRunner(config_path=args.config, loglevel=args.loglevel)
     runner.run_all_tests()
 

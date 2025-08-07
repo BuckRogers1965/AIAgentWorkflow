@@ -1,5 +1,33 @@
 # Unit Testing Framework
 
+
+added command line options.  
+
+To run this from this directory in the git hub project.
+
+'''bash
+    unittest % python test_runner.py --config ../config.json --lib-path ..
+'''
+
+
+'''
+unittest % python test_runner.py --help                               
+usage: test_runner.py [-h] [--config CONFIG] [--lib-path LIB_PATH] [--loglevel {DEBUG,INFO,WARNING,ERROR}]
+
+Agent Workflow Test Runner. Scans config.json for agents with saved unit tests and executes them, generating an HTML report.
+
+options:
+  -h, --help            show this help message and exit
+  --config CONFIG       Path to the configuration file (default: config.json)
+  --lib-path LIB_PATH   Path to the directory containing the dynamic_workflows_agents.py core library.
+  --loglevel {DEBUG,INFO,WARNING,ERROR}
+                        Set the logging level for capturing logs on FAILED tests.
+                        - DEBUG: Most verbose, shows all steps.
+                        - INFO: Shows standard execution flow (default).
+                        - WARNING: Shows only warnings and errors.
+                        - ERROR: Shows only fatal errors.
+'''
+
 This directory contains the Quality Assurance (QA) service for the Dynamic Agent Workflow platform. The `test_runner.py` script is a powerful command-line tool that automates the testing of every agent defined in your `config.json`, ensuring the reliability and correctness of your entire workflow library.
 
 ## Core Philosophy: Tests Live with the Code
