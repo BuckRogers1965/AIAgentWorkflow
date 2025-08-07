@@ -33,17 +33,18 @@ To enhance maintainability and clarity, the IDE is broken down into a set of foc
 editor/
 ├── editor_app.py           # Main application entry point (setup and launch).
 │
+├── config_manager.py       # Manages all interactions with the config.json file.
 ├── ui_app_shell.py         # The main App class and top-level window layout.
-├── ui_editors.py           # Contains all editor forms (Proc, Template, JSON) and their components.
 ├── ui_run_modal.py         # The "Run Agent" modal and its integrated testing UI.
+│
+├── ui_editors.py           # Contains all editor forms (Proc, Template, JSON) and their components.
 ├── ui_step_editor.py       # The modal for editing a single workflow step's parameters.
 ├── ui_theme_editor.py      # The modal for creating and managing visual themes.
+├── workflow_editor.py      # The specific editor frame for workflow agents.
 │
 ├── theme_manager.py        # The back-end logic for loading and saving themes.
-├── workflow_editor.py      # The specific editor frame for workflow agents.
-├── config_manager.py       # Manages all interactions with the config.json file.
-│
 ├── themes.json             # (Optional) User-defined themes are stored here.
+│
 └── requirements.txt        # Python dependencies for the editor.
 ```
 
