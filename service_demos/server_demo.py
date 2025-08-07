@@ -1,8 +1,52 @@
+# --- START OF FILE server_demo.py ---
+
 import json
 import logging
 import logging.handlers
 import sys
-import dynamic_workflows_agents  # Import the module itself
+import argparse
+import os
+
+# --- COMMAND-LINE ARGUMENT PARSING & DYNAMIC LIBRARY LOADING ---
+# This section is added to make the demo flexible and robust.
+
+# 1. DEFINE AND PARSE ARGUMENTS
+parser = argparse.ArgumentParser(
+    description="Headless Workflow Execution Engine Demonstration.",
+    formatter_class=argparse.RawTextHelpFormatter
+)
+parser.add_argument(
+    '--config',
+    default='config.json',
+    help='Path to the configuration file to use (default: config.json)'
+)
+parser.add_argument(
+    '--lib-path',
+    help='Path to the directory containing the dynamic_workflows_agents.py core library.'
+)
+args = parser.parse_args()
+
+# 2. VALIDATE CONFIG FILE PATH
+if not os.path.isfile(args.config):
+    print(f"FATAL ERROR: Configuration file not found at '{os.path.abspath(args.config)}'.\n")
+    parser.print_help()
+    exit(1)
+
+# 3. PREPARE LIBRARY PATH
+if args.lib_path:
+    sys.path.insert(0, os.path.abspath(args.lib_path))
+
+# 4. IMPORT CORE LIBRARY WITH CORRECT ERROR HANDLING
+try:
+    import dynamic_workflows_agents
+    from dynamic_workflows_agents import exec_agent, setup_depth_manager
+except ImportError:
+    print("FATAL ERROR: Could not import the core workflow engine from 'dynamic_workflows_agents.py'.\n")
+    parser.print_help()
+    exit(1)
+
+# --- END OF NEW SECTION ---
+
 
 """
 server.py - Headless Workflow Execution Engine Demonstration
@@ -66,12 +110,6 @@ This foundational script can be extended to create robust, scalable services:
       and route the information.
 """
 
-# Import the necessary functions from the workflow engine
-from dynamic_workflows_agents import (
-    exec_agent, 
-    setup_depth_manager
-)
-
 def setup_server_logging():
     """Sets up a dedicated logger for the server, independent of the CLI."""
     logger = logging.getLogger()
@@ -89,7 +127,7 @@ def setup_server_logging():
     logger.addHandler(console_handler)
     logging.info("Server logging configured.")
 
-def load_config(config_path: str = 'config.json'):
+def load_config(config_path: str):
     """Loads the agent configuration file directly."""
     try:
         with open(config_path, 'r') as f:
@@ -102,9 +140,9 @@ def load_config(config_path: str = 'config.json'):
         logging.error(f"FATAL: Configuration file '{config_path}' is not a valid JSON.")
         sys.exit(1)
 
-def get_agent_for_execution(agent_name: str, agent_inputs: dict, config: dict):
+def get_agent_for_execution(agent_name: str, config: dict):
     """
-    Selects an agent and promotes it to a temporary workflow if it's not already one.
+    Selects an agent from the configuration.
     """
     agent_config = config['agents'].get(agent_name)
     if not agent_config:
@@ -117,7 +155,8 @@ def main_server_test():
     """Main function to demonstrate a headless workflow execution."""
     
     setup_server_logging()
-    config = load_config()
+    # Use the config path from the command-line arguments
+    config = load_config(config_path=args.config)
 
     # --- Define the workflow to run ---
     agent_name_to_run = "loop_start_beta"
@@ -130,10 +169,9 @@ def main_server_test():
     
     setup_depth_manager(config)
     
-    # CORRECT WAY TO SET THE GLOBAL VARIABLE
     dynamic_workflows_agents.log_text_limit = int(config.get('workflow_settings', {}).get('log_text_limit', 1024))
     
-    agent_to_execute = get_agent_for_execution(agent_name_to_run, workflow_inputs, config)
+    agent_to_execute = get_agent_for_execution(agent_name_to_run, config)
 
     if not agent_to_execute:
         logging.error("Could not prepare agent for execution. Aborting.")
