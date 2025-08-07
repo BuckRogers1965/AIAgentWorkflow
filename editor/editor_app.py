@@ -10,6 +10,9 @@ import logging
 import base64
 from functools import reduce 
 import operator 
+import sys
+import os
+import argparse
 from config_manager import ConfigManager
 from pygments import lex
 from pygments.lexers import PythonLexer
@@ -17,15 +20,14 @@ from pygments.token import Token
 
 from workflow_editor import WorkflowEditorFrame
 
-# --- CORE LIBRARY IMPORTS ---
-try:
-    import dynamic_workflows_agents
-    from dynamic_workflows_agents import exec_agent, create_temp_workflow, setup_depth_manager
-except ImportError:
-    messagebox.showerror("Import Error", "Could not import the core workflow engine from 'dynamic_workflows_agents.py'. The 'Run' feature will be disabled.")
-    dynamic_workflows_agents = None
-    def exec_agent(**kwargs): return ({}, {"status":{"value":-1, "reason":"Core library not found"}})
-    def setup_depth_manager(**kwargs): pass
+# THIS BLOCK IS MOVED TO THE `if __name__ == "__main__":` section
+# TO ALLOW COMMAND-LINE PATHS TO BE PROCESSED FIRST.
+# Global placeholders are defined here.
+dynamic_workflows_agents = None
+exec_agent = None
+create_temp_workflow = None
+setup_depth_manager = None
+
 
 # --- UTILITY FUNCTION ---
 def get_nested(data, key_str):
@@ -293,22 +295,23 @@ class GlobalConfigEditorModal(ctk.CTkToplevel):
 
 # --- Main Application Window ---
 class App(ctk.CTk):
-    def __init__(self):
+    # MODIFIED to accept config_path from main block
+    def __init__(self, config_path="config.json"):
         super().__init__()
         self.title("Agent Workflow Editor")
         self.geometry("1400x800")
-        self.config_manager = ConfigManager()
+        # MODIFIED to use the passed-in config_path
+        self.config_manager = ConfigManager(config_path=config_path)
         self.current_agent_name = None
         self.editor_frame_instance = None
         self.search_text = ctk.StringVar()
         self.search_text.trace("w", self.on_search_changed)
         self.show_hidden_agents_var = ctk.IntVar(value=0)
 
-        # --- LAYOUT FIX: Configure grid rows and columns ---
-        self.grid_columnconfigure(0, weight=0) # Agent list panel (fixed width)
-        self.grid_columnconfigure(1, weight=1) # Editor panel (dynamic width)
-        self.grid_rowconfigure(0, weight=1)    # Editor panel (dynamic height)
-        self.grid_rowconfigure(1, weight=0)    # Action bar (fixed height)
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=0)
 
         self.create_agent_list_panel()
         self.create_editor_panel()
@@ -344,11 +347,15 @@ class App(ctk.CTk):
         self.editor_container = ctk.CTkFrame(self); self.editor_container.grid(row=0, column=1, padx=10, pady=(10,0), sticky="nsew")
         self.editor_container.grid_rowconfigure(0, weight=1); self.editor_container.grid_columnconfigure(0, weight=1)
         
-        # --- LAYOUT FIX: Reduce padding on the action bar's grid placement ---
         self.action_bar = ctk.CTkFrame(self, fg_color="transparent"); self.action_bar.grid(row=1, column=1, padx=10, pady=(5, 10), sticky="ew")
         
         self.save_btn = ctk.CTkButton(self.action_bar, text="Save Agent", command=self.save_agent, fg_color="green")
         self.run_btn = ctk.CTkButton(self.action_bar, text="▶️ Run", command=self.open_run_modal, fg_color="#FFC700", text_color="#000000", hover_color="#FFA000")
+        
+        # This is the original, correct logic for disabling the button.
+        if dynamic_workflows_agents is None:
+            self.run_btn.configure(state="disabled")
+
         self.cancel_btn = ctk.CTkButton(self.action_bar, text="Cancel", command=self.show_welcome_message, fg_color="#D32F2F", hover_color="#B71C1C")
         self.spacer_frame = ctk.CTkFrame(self.action_bar, fg_color="transparent", width=240,height=40)
 
@@ -415,7 +422,6 @@ class App(ctk.CTk):
         if self.editor_frame_instance: self.editor_frame_instance.destroy()
         self.action_bar.grid()
         
-        # --- LAYOUT FIX: Reduce padding on the buttons themselves ---
         for widget in [self.save_btn, self.run_btn, self.cancel_btn, self.spacer_frame]: widget.pack_forget()
         self.save_btn.pack(side="right", padx=10, pady=5)
         self.run_btn.pack(side="right", padx=0, pady=5)
@@ -932,14 +938,43 @@ class GuiSettingsModal(ctk.CTkToplevel):
     def cancel(self): self.destroy()
 
 if __name__ == "__main__":
-    ctk.set_appearance_mode("System"); ctk.set_default_color_theme("blue"); app = App()
-    
-    # Optional debugging code
-    # def trace_events(event):
-    #     if "Motion" in str(event.type) or "Button" in str(event.type):
-    #         print(f"EVENT >> Type: {event.type}, Widget: {event.widget}, X: {event.x_root}, Y: {event.y_root}")
-    # app.bind_all("<Motion>", trace_events)
-    # app.bind_all("<ButtonPress>", trace_events)
-    # app.bind_all("<ButtonRelease>", trace_events)
+    # --- MINIMAL CHANGES START HERE ---
 
+    # 1. PARSE ARGUMENTS FIRST
+    parser = argparse.ArgumentParser(description="A visual editor for the Dynamic Agent Workflow system.")
+    parser.add_argument(
+        '--config',
+        default='config.json',
+        help='Path to the configuration file to load. Default: config.json'
+    )
+    parser.add_argument(
+        '--lib-path',
+        help='Path to the directory containing dynamic_workflows_agents.py. If not provided, it is assumed to be in the current working directory.'
+    )
+    args = parser.parse_args()
+
+    # 2. PREPARE LIBRARY PATH BEFORE IMPORT
+    if args.lib_path:
+        # Add the specified directory to the front of the Python path
+        sys.path.insert(0, os.path.abspath(args.lib_path))
+
+    # 3. USE THE ORIGINAL, ROBUST IMPORT BLOCK
+    try:
+        import dynamic_workflows_agents
+        from dynamic_workflows_agents import exec_agent, create_temp_workflow, setup_depth_manager
+    except ImportError:
+        messagebox.showerror("Import Error", "Could not import the core workflow engine from 'dynamic_workflows_agents.py'. The 'Run' feature will be disabled.  You can specify a directory path to dynamic_workflows_agents.py using the --lib-path option on the command line.")
+        dynamic_workflows_agents = None
+        def exec_agent(**kwargs): return ({}, {"status":{"value":-1, "reason":"Core library not found"}})
+        def setup_depth_manager(**kwargs): pass
+
+    # --- APPLICATION STARTUP ---
+    ctk.set_appearance_mode("System")
+    ctk.set_default_color_theme("blue")
+    
+    # 4. PASS THE PARSED CONFIG PATH TO THE APP
+    app = App(config_path=args.config)
+    
     app.mainloop()
+
+    # --- MINIMAL CHANGES END HERE ---

@@ -1,5 +1,14 @@
 # AI Agent Workflow Editor
 
+
+from this directory you can run the program with
+
+```
+python3.11 editor_app.py --config ../config.json --lib-path ..
+```
+
+Where the --config is the path to the config file whatever it is named and the --lib path is the path to the directory that holds the core file: dynamic_workflows_agents.py.
+
 A powerful, feature-complete graphical user interface (GUI) for creating, managing, and editing a declarative, agent-based AI workflow system. This application provides a robust and user-friendly way to edit the central `config.json` file that defines the behavior of the entire AI workflow engine.
 
 Built with Python and CustomTkinter, this editor replaces manual JSON editing with a structured, intuitive interface, preventing syntax errors and dramatically speeding up development of complex AI workflows.
