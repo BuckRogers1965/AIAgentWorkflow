@@ -7,7 +7,6 @@ from pygments.lexers import PythonLexer
 from pygments.token import Token
 from tkinter import messagebox
 
-# (CTkCodeEditor class is unchanged and correct)
 class CTkCodeEditor(ctk.CTkFrame):
     def __init__(self, master, theme, language="python", **kwargs):
         super().__init__(master, **kwargs)
@@ -110,7 +109,6 @@ class ListEditorFrame(ctk.CTkFrame):
         self.refresh()
     
     def get_data(self): 
-        # Correctly get the inner frame of the CTkScrollableFrame to find the entry widgets
         return [widget.get() for row in self.entries_frame.winfo_children() if isinstance(row, ctk.CTkFrame) for widget in row.winfo_children() if isinstance(widget, ctk.CTkEntry)]
 
     def refresh(self):
@@ -256,17 +254,49 @@ class ProcEditorFrame(BaseEditorFrame):
         self.create_function_tab(tab_view.add("Function"))
 
     def create_settings_tab(self, tab):
+        #print("\n" + "="*20 + f" INSTRUMENTATION START: ProcEditorFrame for '{self.agent_name}' " + "="*20)
+        #print(f"STEP 0: Full self.data dictionary received by editor:\n{json.dumps(self.data, indent=2)}")
+
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
+        #print("STEP 1: Tab configured.")
+
         label_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['label_size'], weight="bold")
         main_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['main_size'])
+        #print("STEP 2: Fonts created.")
         
+        #print("STEP 3: Creating Agent Name widgets.")
         ctk.CTkLabel(tab, text="Agent Name:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
-        self.name_entry = ctk.CTkEntry(tab, font=main_font); self.name_entry.insert(0, self.agent_name); self.name_entry.pack(fill="x", padx=10, pady=5)
+        self.name_entry = ctk.CTkEntry(tab, font=main_font)
+        #print(f"STEP 3a: Inserting agent name '{self.agent_name}' into name_entry.")
+        self.name_entry.insert(0, self.agent_name)
+        self.name_entry.pack(fill="x", padx=10, pady=5)
+        #print("STEP 3b: Agent Name widgets created and populated.")
         
+        #print("STEP 4: Creating Help Text widgets.")
         ctk.CTkLabel(tab, text="Help Text:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
-        self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font); self.help_text.insert("1.0", self.data.get("help", "")); self.help_text.pack(fill="x", padx=10, pady=5)
+        self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font)
+        help_data = self.data.get("help", "")
+        #print(f"STEP 4a: Inserting help text '{help_data[:50]}...' into help_text.")
+        self.help_text.insert("1.0", help_data)
+        self.help_text.pack(fill="x", padx=10, pady=5)
+        #print("STEP 4b: Help Text widgets created and populated.")
+
+        #print("STEP 5: Creating Web Service Tags widgets.")
+        ctk.CTkLabel(tab, text="Web Service Tags (comma-separated):", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
+        self.web_services_entry = ctk.CTkEntry(tab, font=main_font)
+        tags_list = self.data.get("web_services", [])
+        #print(f"STEP 5a: Got web_services list from self.data: {tags_list} (Type: {type(tags_list)})")
+        display_string = ", ".join(tags_list)
+        #print(f"STEP 5b: Converted list to string: '{display_string}'")
+        #print(f"STEP 5c: Inserting string into web_services_entry.")
+        self.web_services_entry.insert(0, display_string)
+        self.web_services_entry.pack(fill="x", padx=10, pady=5)
+        #print("STEP 5d: Web Service Tags widgets created and populated.")
         
+        #print("STEP 6: Creating Advanced GUI Settings button.")
         ctk.CTkButton(tab, text="Advanced GUI Settings...", command=self.open_gui_settings).pack(anchor="w", padx=10, pady=10)
+        #print("="*20 + " INSTRUMENTATION END: ProcEditorFrame " + "="*20 + "\n")
+
 
     def create_inputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -304,6 +334,14 @@ class ProcEditorFrame(BaseEditorFrame):
         updated_data = copy.deepcopy(self.data)
         updated_data['name'] = self.name_entry.get().strip()
         updated_data['help'] = self.help_text.get("1.0", "end-1c").strip()
+        
+        tags_string = self.web_services_entry.get().strip()
+        tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
+        if tags_list:
+            updated_data['web_services'] = tags_list
+        elif 'web_services' in updated_data:
+            del updated_data['web_services']
+            
         updated_data['inputs'] = self.inputs_frame.get_data()
         updated_data['optional_inputs'] = self.optionals_frame.get_data()
         updated_data['outputs'] = self.outputs_frame.get_data()
@@ -324,18 +362,46 @@ class TemplateEditorFrame(BaseEditorFrame):
         self.create_prompt_tab(tab_view.add("Prompt"))
 
     def create_settings_tab(self, tab):
+        #print("\n" + "="*20 + f" INSTRUMENTATION START: TemplateEditorFrame for '{self.agent_name}' " + "="*20)
+        #print(f"STEP 0: Full self.data dictionary received by editor:\n{json.dumps(self.data, indent=2)}")
+
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
+        #print("STEP 1: Tab configured.")
+
         label_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['label_size'], weight="bold")
         main_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['main_size'])
-
-        ctk.CTkLabel(tab, text="Agent Name:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
-        self.name_entry = ctk.CTkEntry(tab, font=main_font); self.name_entry.insert(0, self.agent_name); self.name_entry.pack(fill="x", padx=10, pady=5)
+        #print("STEP 2: Fonts created.")
         
+        #print("STEP 3: Creating Agent Name widgets.")
+        ctk.CTkLabel(tab, text="Agent Name:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
+        self.name_entry = ctk.CTkEntry(tab, font=main_font)
+        #print(f"STEP 3a: Inserting agent name '{self.agent_name}' into name_entry.")
+        self.name_entry.insert(0, self.agent_name)
+        self.name_entry.pack(fill="x", padx=10, pady=5)
+        #print("STEP 3b: Agent Name widgets created and populated.")
+        
+        #print("STEP 4: Creating Help Text widgets.")
         ctk.CTkLabel(tab, text="Help Text:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
-        # --- THIS IS THE CRITICAL FIX ---
-        # Removed the extra dot: self.data..get -> self.data.get
-        self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font); self.help_text.insert("1.0", self.data.get("help", "")); self.help_text.pack(fill="x", padx=10, pady=5)
-        # --- END OF CRITICAL FIX ---
+        self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font)
+        help_data = self.data.get("help", "")
+        #print(f"STEP 4a: Inserting help text '{help_data[:50]}...' into help_text.")
+        self.help_text.insert("1.0", help_data)
+        self.help_text.pack(fill="x", padx=10, pady=5)
+        #print("STEP 4b: Help Text widgets created and populated.")
+
+        #print("STEP 5: Creating Web Service Tags widgets.")
+        ctk.CTkLabel(tab, text="Web Service Tags (comma-separated):", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
+        self.web_services_entry = ctk.CTkEntry(tab, font=main_font)
+        tags_list = self.data.get("web_services", [])
+        #print(f"STEP 5a: Got web_services list from self.data: {tags_list} (Type: {type(tags_list)})")
+        display_string = ", ".join(tags_list)
+        #print(f"STEP 5b: Converted list to string: '{display_string}'")
+        #print(f"STEP 5c: Inserting string into web_services_entry.")
+        self.web_services_entry.insert(0, display_string)
+        self.web_services_entry.pack(fill="x", padx=10, pady=5)
+        #print("STEP 5d: Web Service Tags widgets created and populated.")
+        #print("="*20 + " INSTRUMENTATION END: TemplateEditorFrame " + "="*20 + "\n")
+
 
     def create_inputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -367,6 +433,14 @@ class TemplateEditorFrame(BaseEditorFrame):
         updated_data = copy.deepcopy(self.data)
         updated_data['name'] = self.name_entry.get().strip()
         updated_data['help'] = self.help_text.get("1.0", "end-1c").strip()
+        
+        tags_string = self.web_services_entry.get().strip()
+        tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
+        if tags_list:
+            updated_data['web_services'] = tags_list
+        elif 'web_services' in updated_data:
+            del updated_data['web_services']
+            
         updated_data['inputs'] = self.inputs_frame.get_data()
         updated_data['optional_inputs'] = self.optionals_frame.get_data()
         updated_data['outputs'] = self.outputs_frame.get_data()

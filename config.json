@@ -211,6 +211,10 @@
       "optional_inputs": []
     },
     "append_text": {
+      "web_services": [
+        "public_api",
+        "internal_tools"
+      ],
       "type": "template",
       "inputs": [
         "whole_text",
@@ -1123,6 +1127,53 @@
       "outputs": [
         "fixed_json"
       ]
+    },
+    "ftp_fetch": {
+      "type": "proc",
+      "help": "",
+      "inputs": [
+        "remote_path",
+        "ftp_host"
+      ],
+      "optional_inputs": [
+        "ftp_user",
+        "ftp_pass",
+        "port",
+        "passive"
+      ],
+      "outputs": [
+        "output"
+      ],
+      "function": "ftp_fetch",
+      "function_def": "def ftp_fetch(\n    remote_path: str,\n    ftp_host: str,\n    output: list,\n    ftp_user: str = \"anonymous\",\n    ftp_pass: str = \"\",\n    port: int = 21,\n    passive_mode: bool = True,\n) -> tuple:\n    \"\"\"\n    Fetch a file or directory listing from FTP server.\n\n    Parameters:\n        remote_path: str - path on FTP server (ends with '/' if directory)\n        ftp_host: str - FTP server hostname\n        output: list - list of output variable names (ignored here)\n        ftp_user: str - optional username (empty for anonymous)\n        ftp_pass: str - optional password\n        port: int - FTP port (default 21)\n        passive_mode: bool - passive mode toggle (default True)\n\n    Returns:\n        tuple: (raw_data, status_dict)\n            raw_data: bytes if file, str if directory listing\n            status_dict: dict with \"status\": {\"value\": 0 or 1, \"reason\": \"message\"}\n    \"\"\"\n    import time\n    from ftplib import FTP, error_perm\n    from io import BytesIO\n    from os.path import dirname, basename\n    import socket\n\n    MAX_RETRIES = 5\n    BACKOFF_BASE = 1\n\n    def is_permanent_failure(e: Exception) -> bool:\n        msg = str(e).lower()\n        if isinstance(e, error_perm):\n            return any(code in msg for code in [\"550\", \"530\", \"553\", \"501\", \"502\"])\n        return False\n\n    def connect_ftp(use_auth: bool, passive: bool) -> FTP:\n        ftp = FTP()\n        ftp.connect(ftp_host, port, timeout=10)\n        if use_auth and ftp_user:\n            ftp.login(user=ftp_user, passwd=ftp_pass)\n        else:\n            ftp.login()\n        ftp.set_pasv(passive)\n        return ftp\n\n    def get_directory(ftp: FTP) -> str:\n        lines = []\n        ftp.cwd(remote_path)\n        ftp.retrlines(\"NLST\", lines.append)\n        return \"\\n\".join(lines)\n\n    def get_file(ftp: FTP) -> bytes:\n        dirpath = dirname(remote_path)\n        fname = basename(remote_path)\n        if dirpath and dirpath != \"/\":\n            ftp.cwd(dirpath)\n        buf = BytesIO()\n        ftp.retrbinary(f\"RETR {fname}\", buf.write)\n        return buf.getvalue()\n\n    for attempt in range(1, MAX_RETRIES + 1):\n        try:\n            use_auth = (attempt % 2 == 1)\n            current_passive = passive_mode if attempt <= 3 else not passive_mode\n\n            ftp = connect_ftp(use_auth, current_passive)\n\n            if remote_path.endswith(\"/\"):\n                result = get_directory(ftp)\n            else:\n                result = get_file(ftp)\n\n            ftp.quit()\n            return result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n        except Exception as e:\n            if is_permanent_failure(e):\n                return None, {\"status\": {\"value\": 1, \"reason\": f\"Permanent failure: {str(e)}\"}}\n            if attempt == MAX_RETRIES:\n                return None, {\"status\": {\"value\": 1, \"reason\": f\"Max retries reached: {str(e)}\"}}\n            time.sleep(BACKOFF_BASE * 2 ** (attempt - 1))",
+      "run_config": {
+        "last_inputs": {
+          "remote_path": "/pub/CRYPTO.README",
+          "ftp_host": "ftp.gnu.org"
+        },
+        "last_log_level": "INFO",
+        "tests": []
+      }
+    },
+    "ftp_put": {
+      "type": "proc",
+      "help": "",
+      "inputs": [
+        " remote_path",
+        "ftp_host",
+        "file_bytes"
+      ],
+      "optional_inputs": [
+        "ftp_user",
+        "ftp_pass",
+        "port",
+        "passive_mode"
+      ],
+      "outputs": [
+        "bytes_written"
+      ],
+      "function": "",
+      "function_def": "ef ftp_put(\n    remote_path: str,\n    ftp_host: str,\n    file_bytes: bytes,\n    output: list,\n    ftp_user: str = \"anonymous\",\n    ftp_pass: str = \"\",\n    port: int = 21,\n    passive_mode: bool = True,\n) -> tuple:\n    \"\"\"\n    Upload a file to an FTP server with retry and adaptive login/passive mode.\n\n    Parameters:\n        remote_path: str - target path on FTP server (including filename)\n        ftp_host: str - FTP server hostname or IP\n        file_bytes: bytes - raw file data to upload\n        output: list - list of output variable names (only first used here)\n        ftp_user: str - optional username (empty for anonymous)\n        ftp_pass: str - optional password\n        port: int - FTP port (default 21)\n        passive_mode: bool - passive mode toggle (default True)\n\n    Returns:\n        tuple: (raw_output, status_dict)\n            raw_output: str - message like \"Uploaded X bytes\"\n            status_dict: dict with \"status\": {\"value\": 0 or 1, \"reason\": \"...\"}\n    \"\"\"\n    import time\n    from ftplib import FTP, error_perm\n    from io import BytesIO\n    from os.path import dirname\n    import socket\n\n    MAX_RETRIES = 5\n    BACKOFF_BASE = 1\n\n    def is_permanent_failure(e: Exception) -> bool:\n        msg = str(e).lower()\n        if isinstance(e, error_perm):\n            return any(code in msg for code in [\"530\", \"550\", \"553\", \"501\", \"502\"])\n        return False\n\n    def connect_ftp(use_auth: bool, passive: bool) -> FTP:\n        ftp = FTP()\n        ftp.connect(ftp_host, port, timeout=10)\n        if use_auth and ftp_user:\n            ftp.login(user=ftp_user, passwd=ftp_pass)\n        else:\n            ftp.login()\n        ftp.set_pasv(passive)\n        return ftp\n\n    def upload_file(ftp: FTP):\n        dirpath = dirname(remote_path)\n        if dirpath and dirpath != \"/\":\n            ftp.cwd(dirpath)\n        filename = remote_path.split(\"/\")[-1]\n        bio = BytesIO(file_bytes)\n        ftp.storbinary(f\"STOR {filename}\", bio)\n\n    for attempt in range(1, MAX_RETRIES + 1):\n        try:\n            use_auth = (attempt % 2 == 1)\n            current_passive = passive_mode if attempt <= 3 else not passive_mode\n\n            ftp = connect_ftp(use_auth, current_passive)\n            upload_file(ftp)\n            ftp.quit()\n\n            return f\"Uploaded {len(file_bytes)} bytes\", {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n        except Exception as e:\n            if is_permanent_failure(e):\n                return None, {\"status\": {\"value\": 1, \"reason\": f\"Permanent failure: {str(e)}\"}}\n            if attempt == MAX_RETRIES:\n                return None, {\"status\": {\"value\": 1, \"reason\": f\"Max retries reached: {str(e)}\"}}\n            time.sleep(BACKOFF_BASE * 2 ** (attempt - 1))"
     },
     "get_comfy_response": {
       "type": "workflow",
@@ -2215,6 +2266,10 @@
       ]
     },
     "read_file": {
+      "web_services": [
+        "public_api",
+        "internal_tools"
+      ],
       "type": "proc",
       "help": "Reads content from a file",
       "function": "read_file",
@@ -2300,6 +2355,94 @@
             "results"
           ]
         }
+      ]
+    },
+    "sqlite": {
+      "type": "proc",
+      "help": "",
+      "inputs": [
+        "sql_command"
+      ],
+      "optional_inputs": [
+        "db_path"
+      ],
+      "outputs": [
+        "results"
+      ],
+      "function": "sqlite",
+      "function_def": "def sqlite(\n    sql_command: str,\n    output: list,\n    db_path: str = \":memory:\"\n) -> tuple:\n    \"\"\"\n    Execute an SQL command on an embedded SQLite database.\n\n    Parameters:\n        sql_command (str): The SQL query or command to execute.\n        output (list): List of output variable names; first is used for result.\n        db_path (str): Optional SQLite DB file path; defaults to in-memory DB.\n\n    Returns:\n        tuple: (result, status_dict)\n            result: list of dicts for SELECT queries or int (affected rows) for others\n            status_dict: dict with {\"status\": {\"value\": 0 or 1, \"reason\": \"...\"}}\n\n\nCREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT);\nINSERT INTO test (name) VALUES ('Alice'), ('Bob');\nSELECT * FROM test;\n\n    \"\"\"\n    import sqlite3\n\n    conn = sqlite3.connect(db_path)\n    conn.row_factory = sqlite3.Row\n    cur = conn.cursor()\n    cur.execute(sql_command)\n\n    if sql_command.strip().lower().startswith(\"select\"):\n        rows = cur.fetchall()\n        result = [dict(row) for row in rows]\n    else:\n        conn.commit()\n        result = cur.rowcount\n\n    cur.close()\n    conn.close()\n\n    return {output[0]: result}, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+      "run_config": {
+        "last_inputs": {
+          "sql_command": ""
+        },
+        "last_log_level": "INFO",
+        "tests": []
+      }
+    },
+    "sqlite test": {
+      "type": "workflow",
+      "help": "",
+      "inputs": [],
+      "optional_inputs": [],
+      "outputs": [
+        "results"
+      ],
+      "return_on_fail": 0,
+      "steps": [
+        {
+          "agent": "sqlite",
+          "params": {
+            "db_path": "test.db",
+            "sql_command": "DROP TABLE test;"
+          },
+          "output": [
+            "results"
+          ]
+        },
+        {
+          "agent": "sqlite",
+          "params": {
+            "db_path": "test.db",
+            "sql_command": "CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT);"
+          },
+          "output": [
+            "results"
+          ]
+        },
+        {
+          "agent": "sqlite",
+          "params": {
+            "db_path": "test.db",
+            "sql_command": "INSERT INTO test (name) VALUES ('Alice'), ('Bob');"
+          },
+          "output": [
+            "results"
+          ]
+        },
+        {
+          "agent": "sqlite",
+          "params": {
+            "db_path": "test.db",
+            "sql_command": "SELECT * FROM test;"
+          },
+          "output": [
+            "results"
+          ]
+        }
+      ],
+      "run_config": {
+        "last_inputs": {},
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "1"
+          }
+        ]
+      },
+      "web_services": [
+        "public_api"
       ]
     },
     "story_chapter_outline_prompt": {

@@ -4,11 +4,11 @@ from tkinter import ttk, Menu
 import copy
 import time
 import re
+import json # Import json for commented-out debug prints
 
 # Import the base class from its new module
 from ui_editors import BaseEditorFrame, ListEditorFrame
 
-# ... (PromoteToWorkflowModal and GuiApi classes are unchanged) ...
 class PromoteToWorkflowModal(ctk.CTkToplevel):
     def __init__(self, parent, block_inputs, block_outputs, proposed_name):
         super().__init__(parent)
@@ -96,12 +96,8 @@ class GuiApi:
         return str(int(time.time()))[-6:]
 
 class WorkflowEditorFrame(BaseEditorFrame):
-    # --- THIS IS THE CRITICAL FIX ---
-    # The __init__ signature is updated to accept the 'theme' argument.
     def __init__(self, master, agent_name, agent_data, app_ref, theme):
-        # The 'theme' is passed to the parent BaseEditorFrame constructor.
         super().__init__(master, agent_name, agent_data, app_ref, theme)
-    # --- END OF CRITICAL FIX ---
         
         self._dnd_initialized = False
         self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
@@ -112,10 +108,8 @@ class WorkflowEditorFrame(BaseEditorFrame):
 
         self.selected_indices = set()
         self.last_selected_index = None
-        # Use the theme color for selection
         self.selected_color = self.theme['colors']['accent_primary']
 
-        # Apply theme to the tab view
         self.tab_view = ctk.CTkTabview(self, command=self._on_tab_change, fg_color=self.theme['colors']['bg_primary'])
         self.tab_view.grid(row=0, column=0, sticky="nsew")
 
@@ -127,11 +121,12 @@ class WorkflowEditorFrame(BaseEditorFrame):
         self.create_outputs_tab(self.tab_view.add("Outputs"))
         self.create_steps_tab(self.tab_view.add("Steps"))
 
-    # ... (All other methods in WorkflowEditorFrame are unchanged,
-    # but they will now benefit from self.theme if you choose to style them further.) ...
-
     def create_settings_tab(self, tab):
-        # Example of applying theme to this tab
+        # --- COMMENTED-OUT INSTRUMENTATION ADDED HERE ---
+        # print("\n" + "="*20 + f" INSTRUMENTATION: WorkflowEditorFrame for '{self.agent_name}' " + "="*20)
+        # print(f"STEP 0: Full self.data dictionary received by editor:\n{json.dumps(self.data, indent=2)}")
+        # --- END OF INSTRUMENTATION ---
+
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         label_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['label_size'], weight="bold")
         main_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['main_size'])
@@ -139,8 +134,26 @@ class WorkflowEditorFrame(BaseEditorFrame):
         help_btn = self._create_help_button(tab, "Settings for this workflow agent."); help_btn.place(relx=0.98, rely=0.02, anchor="ne")
         ctk.CTkLabel(tab, text="Agent Name:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.name_entry = ctk.CTkEntry(tab, font=main_font); self.name_entry.insert(0, self.agent_name); self.name_entry.pack(fill="x", padx=10, pady=5)
+        
         ctk.CTkLabel(tab, text="Help Text:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font); self.help_text.insert("1.0", self.data.get("help", "")); self.help_text.pack(fill="x", padx=10, pady=5)
+        
+        # --- NEW FIELD ADDED HERE ---
+        ctk.CTkLabel(tab, text="Web Service Tags (comma-separated):", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
+        self.web_services_entry = ctk.CTkEntry(tab, font=main_font)
+        
+        # --- COMMENTED-OUT INSTRUMENTATION ADDED HERE ---
+        # tags_list = self.data.get("web_services", [])
+        # print(f"STEP 5a: Got web_services list from self.data: {tags_list} (Type: {type(tags_list)})")
+        # display_string = ", ".join(tags_list)
+        # print(f"STEP 5b: Converted list to string: '{display_string}'")
+        # print(f"STEP 5c: Inserting string into web_services_entry.")
+        # --- END OF INSTRUMENTATION ---
+        
+        self.web_services_entry.insert(0, ", ".join(self.data.get("web_services", [])))
+        self.web_services_entry.pack(fill="x", padx=10, pady=5)
+        # --- END OF NEW FIELD ---
+
         fail_frame = ctk.CTkFrame(tab, fg_color="transparent"); fail_frame.pack(fill="x", padx=10, pady=10)
         self.fail_check_var = ctk.IntVar(value=self.data.get("return_on_fail", 0))
         self.fail_check = ctk.CTkCheckBox(fail_frame, text="Return on Fail", variable=self.fail_check_var, font=main_font); self.fail_check.pack(side="left")
@@ -157,21 +170,24 @@ class WorkflowEditorFrame(BaseEditorFrame):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         self.outputs_frame = ListEditorFrame(tab, "Outputs", self.data.get("outputs", []), self.theme); self.outputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-    # (Rest of the class is unchanged)
     def _on_tab_change(self):
         self.app_ref.refresh_agent_list()
         if self.tab_view.get() == "Steps" and not self._dnd_initialized: self._initialize_dnd_features()
+
     def _initialize_dnd_features(self):
         self.drop_indicator = ttk.Separator(self.steps_frame, orient='horizontal'); self._dnd_initialized = True
+
     def _create_drag_window(self, text, event):
         if self.drag_window: self.drag_window.destroy()
         self.drag_window = ctk.CTkToplevel(self); self.drag_window.overrideredirect(True)
         self.drag_window.attributes("-alpha", 0.75)
         label = ctk.CTkLabel(self.drag_window, text=text, fg_color="gray20", corner_radius=6, padx=10, pady=5); label.pack()
         self.drag_window.geometry(f"+{event.x_root + 10}+{event.y_root + 10}")
+
     def _start_drag_polling(self):
         self.is_dragging = True; self.winfo_toplevel().bind("<ButtonRelease-1>", self._on_drop)
         self.winfo_toplevel().bind("<Escape>", self._on_drag_cancel); self._drag_polling_loop()
+
     def _drag_polling_loop(self):
         if not self.is_dragging: return
         x_root, y_root = self.winfo_pointerx(), self.winfo_pointery()
@@ -183,6 +199,7 @@ class WorkflowEditorFrame(BaseEditorFrame):
         else:
             self.drag_data["drop_index"] = -1; self.drop_indicator.place_forget(); self._stop_scroll()
         self.after(20, self._drag_polling_loop)
+
     def _on_drop(self, event):
         if not self.is_dragging: return
         self.is_dragging = False; self.winfo_toplevel().unbind("<ButtonRelease-1>"); self.winfo_toplevel().unbind("<Escape>")
@@ -193,6 +210,7 @@ class WorkflowEditorFrame(BaseEditorFrame):
             elif self.drag_data["source"] == "steps_frame": self.move_step_to_index(self.drag_data["source_index"], self.drag_data["drop_index"])
         self.refresh_steps_list(); self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
         self.winfo_toplevel().configure(cursor="")
+
     def _on_drag_cancel(self, event=None):
         if not self.is_dragging: return
         self.is_dragging = False; self.winfo_toplevel().unbind("<ButtonRelease-1>"); self.winfo_toplevel().unbind("<Escape>")
@@ -200,15 +218,18 @@ class WorkflowEditorFrame(BaseEditorFrame):
         self._stop_scroll(); self.drop_indicator.place_forget()
         self.refresh_steps_list(); self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
         self.winfo_toplevel().configure(cursor="")
+
     def _on_agent_drag_start(self, event, agent_name):
         if not self._dnd_initialized or self.selected_indices: return
         self.drag_data = {"source": "agent_list", "payload": agent_name, "source_index": -1, "drop_index": -1}
         self.winfo_toplevel().configure(cursor="hand2"); self._create_drag_window(f"[Agent] {agent_name}", event); self._start_drag_polling()
+
     def _on_step_drag_start(self, event, index, widget):
         if not self._dnd_initialized or self.selected_indices: return
         agent_name = self.data['steps'][index].get('agent', 'Unknown')
         self.drag_data = {"source": "steps_frame", "payload": self.data['steps'][index], "source_index": index, "drop_index": -1}
         widget.pack_forget(); self.winfo_toplevel().configure(cursor="fleur"); self._create_drag_window(f"Step {index}: {agent_name}", event); self._start_drag_polling()
+
     def _update_drop_indicator(self, root_y):
         try:
             canvas = self.steps_frame._parent_canvas; y_on_canvas = root_y - canvas.winfo_rooty(); y_content = canvas.canvasy(y_on_canvas)
@@ -226,11 +247,13 @@ class WorkflowEditorFrame(BaseEditorFrame):
                 prev_child = children[new_index - 1]; indicator_y = prev_child.winfo_y() + prev_child.winfo_height() + 1
             self.drop_indicator.place(x=0, y=indicator_y, relwidth=1, height=2)
         except Exception: self.drop_indicator.place_forget()
+
     def _manage_autoscroll(self, y_local, widget_height):
         scroll_threshold = 40
         if y_local < scroll_threshold: self._start_scroll("up")
         elif y_local > widget_height - scroll_threshold: self._start_scroll("down")
         else: self._stop_scroll()
+
     def _start_scroll(self, direction):
         if self._scroll_direction == direction: return
         self._stop_scroll(); self._scroll_direction = direction; delta = -1 if direction == "up" else 1
@@ -239,6 +262,7 @@ class WorkflowEditorFrame(BaseEditorFrame):
             self.steps_frame._parent_canvas.yview_scroll(delta, "units"); self.update_idletasks()
             self._update_drop_indicator(self.winfo_pointery()); self._scroll_job_id = self.after(30, scroll_action)
         scroll_action()
+
     def _stop_scroll(self):
         if self._scroll_job_id: self.after_cancel(self._scroll_job_id); self._scroll_job_id = None
         self._scroll_direction = None
@@ -411,6 +435,16 @@ class WorkflowEditorFrame(BaseEditorFrame):
         updated_data = copy.deepcopy(self.data)
         updated_data['name'] = self.name_entry.get().strip()
         updated_data['help'] = self.help_text.get("1.0", "end-1c").strip()
+        
+        # --- NEW LOGIC ADDED HERE ---
+        tags_string = self.web_services_entry.get().strip()
+        tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
+        if tags_list:
+            updated_data['web_services'] = tags_list
+        elif 'web_services' in updated_data:
+            del updated_data['web_services']
+        # --- END OF NEW LOGIC ---
+        
         updated_data['inputs'] = self.inputs_frame.get_data()
         updated_data['optional_inputs'] = self.optionals_frame.get_data()
         updated_data['outputs'] = self.outputs_frame.get_data()
