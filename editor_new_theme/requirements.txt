@@ -1,0 +1,3 @@
+customtkinter
+pygments
+font-manager

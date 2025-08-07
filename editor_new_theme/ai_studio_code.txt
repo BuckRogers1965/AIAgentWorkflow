@@ -1,0 +1,19 @@
+# Dynamic Agent Workflow IDE
+
+Welcome to the visual development environment for the Dynamic Agent Workflow platform. This application is a powerful, graphical tool for creating, editing, managing, and testing agents and workflows defined in your `config.json` file.
+
+This IDE is a testament to the "Emergent Development" philosophy. It is not just a front-end for the core engine; it is a sophisticated application that arises from the simple, self-describing nature of the agent architecture. Features like the "Promote to Workflow" refactoring tool and the integrated testing framework are natural consequences of the platform's core fractal design.
+
+## Key Features
+
+*   **Visual Workflow Builder:** Drag-and-drop agents to build and reorder complex workflows.
+*   **Intelligent Agent Editors:** Context-aware forms for `proc`, `template`, and `workflow` agents.
+*   **Live Run & Test Environment:** Execute any agent with custom inputs and build a persistent suite of unit tests directly within the UI.
+*   **One-Click Refactoring:** Select any block of steps in a workflow and automatically encapsulate them into a new, reusable workflow agent.
+*   **Fully Themeable Interface:** Customize every color, font, and style element of the IDE to your liking using a simple `themes.json` file.
+
+## Architecture: A Modular, Component-Based UI
+
+To enhance maintainability and clarity, the IDE is broken down into a set of focused, single-responsibility Python modules. This modular structure separates the application's core logic from its various UI components.
+
+### Directory Structure
