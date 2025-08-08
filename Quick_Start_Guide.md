@@ -41,9 +41,13 @@ whole_text: 111112222
 
 ---
 
-The  GUI is what moves this project into a professional level.  The GUI is defined by the json config structure and it just has feastures added to make editing that file easier. If you don't give it the path to the core library, the only thing that happens is the run button is deactivated.  It informs you of that fact.
+The  GUI is what moves this project into a professional level.  
 
-What the gui does is give full access to the complete json config for every agent type. It gives you the tools you need to build new agents and workflows.  The step editor shows you all allows ouputs that can be mapped into the inputs of a step. 
+What lead to creating this tool is the fact that hand editing a thousand line json file is a special kind of hell.  A single comma missing any everything collapses and breaks and it takes a long time to fix.  You had to consantly jump back and forth between the agent defintion and the step in a workflow to figure out how to wire the outputs to the inputs. If you renamed an agent, you had to find and edite that same name in every step.  The GUI solves every one of those pain points and allows direct testing as you build in the gui.
+
+The GUI is defined by the json config structure and it just has features added to make editing that file easier. If you don't give it the path to the core library, the only thing that happens is the run button is deactivated.  It informs you of that fact.
+
+What the gui does is give full access to the complete json config for every agent type. It gives you the tools you need to build new agents and workflows.  The step editor shows you all allows ouputs that can be mapped into the inputs of a step.  
 
 ```bash
 cd editor_new_theme/
