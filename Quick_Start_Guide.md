@@ -1,6 +1,6 @@
 ## ** Quitck start guide.
 
-(This project)[https://github.com/BuckRogers1965/AIAgentWorkflow] is a simple, easy to understand agent workflow framework where the complexity emerges from simplicty.
+[This project](https://github.com/BuckRogers1965/AIAgentWorkflow) is a simple, easy to understand agent workflow framework where the complexity emerges from simplicty.
 
 The basic guiding principle is that everything is a process and those processes have inputs, perform an action on those inputs, and generates one or more outputs.  This self similarity at every level is what allows everything to grow fractally.
 
