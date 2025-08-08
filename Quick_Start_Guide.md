@@ -31,7 +31,7 @@ This gives a list of available agents and their purpose, their inputs and output
 To run one agent just give it the agent names and the inputs on the command :
 
 ```bash
-$ python dynamic_workflows_agents.py append_text --whole_text 11111 --part_text 2222
+python dynamic_workflows_agents.py append_text --whole_text 11111 --part_text 2222
 ```
 
 ```text
