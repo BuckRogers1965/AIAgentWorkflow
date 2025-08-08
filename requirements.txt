@@ -1,0 +1,47 @@
+# requirements.txt
+
+# --- GUI / Editor Dependencies ---
+customtkinter
+pygments
+copy
+time
+re
+io
+logging
+base64
+functools
+operator
+
+# --- Core Engine & Proc Agent Dependencies ---
+argparse
+typing
+pdb
+
+# networking
+requests
+socket
+sys
+
+# For AI model providers
+openai
+groq
+hugchat
+
+# For Retrieval-Augmented Generation (RAG)
+# Note: faiss-cpu is specified to avoid needing a GPU/CUDA setup
+faiss-cpu
+sentence-transformers
+numpy
+
+# For data parsing and manipulation
+beautifulsoup4
+lxml
+json-repair
+json
+lxml 
+xml
+html
+urllib
+
+
+
