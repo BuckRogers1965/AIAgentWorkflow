@@ -1,6 +1,6 @@
 ## ** Quitck start guide.
 
-This project is a simple, easy to understand agent workflow framework where the complexity emerges from simplicty.
+(This project)[https://github.com/BuckRogers1965/AIAgentWorkflow] is a simple, easy to understand agent workflow framework where the complexity emerges from simplicty.
 
 The basic guiding principle is that everything is a process and those processes have inputs, perform an action on those inputs, and generates one or more outputs.  This self similarity at every level is what allows everything to grow fractally.
 
@@ -32,7 +32,9 @@ To run one agent just give it the agent names and the inputs on the command :
 
 ```bash
 $ python dynamic_workflows_agents.py append_text --whole_text 11111 --part_text 2222
+```
 
+```text
 The output:
 whole_text: 111112222
 ```
@@ -44,8 +46,8 @@ The  GUI is what moves this project into a professional level.  The GUI is defin
 What the gui does is give full access to the complete json config for every agent type. It gives you the tools you need to build new agents and workflows.  The step editor shows you all allows ouputs that can be mapped into the inputs of a step. 
 
 ```bash
-$ cd editor_new_theme/
-editor_new_theme$ python editor_app.py --config ../config.json --lib-path ..
+cd editor_new_theme/
+python editor_app.py --config ../config.json --lib-path ..
 ```
 
 ---
@@ -54,8 +56,8 @@ To generate a beautiful, well formatted report of the agents that have a defined
 
 
 ```bash
-$ cd ../unit_testing/
-unit_testing$ python test_runner.py --config ../config.json --lib-path .. 
+cd ../unit_testing/
+python test_runner.py --config ../config.json --lib-path .. 
 ```
 
 ---
@@ -64,8 +66,8 @@ Finally, you can expose any agents you want as a web service, and you can limit 
 
 
 ```bash
-$ cd ../service_demo/
-service_demos$ python flask_web_service.py --config ../config.json --lib-path ..  --service public_api 
+cd ../service_demo/
+python flask_web_service.py --config ../config.json --lib-path ..  --service public_api 
 ```
 
 Make sure that web service port is not being blocked on your system.
@@ -74,6 +76,7 @@ This allows you to show the interface as an url with
 
 ```url
 http://127.0.0.1:5000/
+```
 
 
 You can run the same demo with: 
