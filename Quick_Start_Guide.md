@@ -1,4 +1,4 @@
-## ** Quitck start guide.
+## ** Quick Start Guide **
 
 [This project](https://github.com/BuckRogers1965/AIAgentWorkflow) is a simple, easy to understand agent workflow framework where the complexity emerges from simplicty.
 
