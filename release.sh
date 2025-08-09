@@ -27,18 +27,19 @@ echo "🚀 Preparing release: $VERSION"
 ARCHIVE_NAME="agent_workflow_release-$VERSION.zip"
 echo "📦 Creating archive: $ARCHIVE_NAME"
 
-zip "releases/$ARCHIVE_NAME" \
+zip -9 "releases/$ARCHIVE_NAME" \
     config.json dynamic_workflows_agents.py \
     requirements.txt \
     README.md \
-    docs/Quick_Start_Guide.md \
+    docs/*.md \
     editor/*.py \
     editor/themes.json \
     editor/README.md \
     service_demos/flask_web_service.py \
     service_demos/README.md \
     unit_testing/*.py \
-    unit_testing/README.md
+    unit_testing/README.md \
+    untilities/config_diff.py
     
 # Check the exit code of the last command ($?). '0' means success.
 if [ $? -ne 0 ]; then
