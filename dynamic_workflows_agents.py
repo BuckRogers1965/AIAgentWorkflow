@@ -44,7 +44,6 @@ def needs_updated(params):
         if isinstance(value, str) and value.startswith("ENV_"):
             return True
     return False
-# The only required change is adding ', force_recompile: bool = False' to the function definition
 def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_def: str, force_recompile: bool = False) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
     spacing = depth_manager.get_spacing()
     logging.info("%sStarting %s" % (spacing, function_name))
@@ -54,8 +53,6 @@ def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_de
     status = {"status": {"value": 1, "reason": "Function execution not attempted"}}
     
     try:
-        # The second change is modifying this 'if' statement
-        # This one line now handles both the old and new logic
         if force_recompile or function_name not in globals():
             if force_recompile:
                 logging.info("%sForce recompile requested for function %s" % (spacing, function_name))
@@ -67,39 +64,6 @@ def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_de
             exec(function_def, globals())
         else:
             logging.info("%sUsing existing cached function %s" % (spacing, function_name))
-
-        func = globals()[function_name]
-        
-        if needs_updated(step_params):
-            updated_step_params = replace_envs(step_params)
-        else:
-            updated_step_params = step_params
-        result, status = func(**updated_step_params)
-        # return the status of the function executiong
-        
-    except Exception as e:
-        logging.error("%sAn error occurred while executing %s: %s" % (spacing, function_name, str(e)))
-        status = {"status": {"value": 1, "reason": "Error executing %s: %s" % (function_name, str(e))}}
-
-    logging.info("%sCompleted %s with status: %s" % (spacing, function_name, str(status)))
-    return result, status
-def exec_proc_agent_old(function_name: str, step_params: Dict[str, Any], function_def: str) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
-    spacing = depth_manager.get_spacing()
-    logging.info("%sStarting %s" % (spacing, function_name))
-    logging.debug("%s******** \n step_params%s" % (spacing, step_params))
-    
-    result = b''  # Initialize result as empty bytes
-    status = {"status": {"value": 1, "reason": "Function execution not attempted"}}
-    
-    try:
-        # Dynamically create abd dispatch to the appropriate processing function
-        # Check if the function is already defined in the global scope
-        if function_name not in globals():
-            logging.info("%sCreating function %s" % (spacing, function_name))
-            logging.debug("%s******** Function definition:\n%s" % (spacing, function_def))
-            # Define the function dynamically
-            exec(function_def, globals())
-        else: logging.info("%sUsing existing function %s" % (spacing, function_name))
 
         func = globals()[function_name]
         
