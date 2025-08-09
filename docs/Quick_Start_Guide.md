@@ -50,7 +50,7 @@ The GUI is defined by the json config structure and it just has features added t
 What the gui does is give full access to the complete json config for every agent type. It gives you the tools you need to build new agents and workflows.  The step editor shows you all allows ouputs that can be mapped into the inputs of a step.  
 
 ```bash
-cd editor_new_theme/
+cd editor/
 python editor_app.py --config ../config.json --lib-path ..
 ```
 

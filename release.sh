@@ -27,15 +27,14 @@ echo "🚀 Preparing release: $VERSION"
 ARCHIVE_NAME="agent_workflow_release-$VERSION.zip"
 echo "📦 Creating archive: $ARCHIVE_NAME"
 
-
 zip "releases/$ARCHIVE_NAME" \
     config.json dynamic_workflows_agents.py \
     requirements.txt \
     README.md \
-    Quick_Start_Guide.md \
-    editor_new_theme/*.py \
-    editor_new_theme/themes.json \
-    editor_new_theme/README.md \
+    docs/Quick_Start_Guide.md \
+    editor/*.py \
+    editor/themes.json \
+    editor/README.md \
     service_demos/flask_web_service.py \
     service_demos/README.md \
     unit_testing/*.py \
