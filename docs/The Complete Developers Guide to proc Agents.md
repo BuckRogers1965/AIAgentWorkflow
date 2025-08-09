@@ -143,3 +143,103 @@ The engine automatically handles this, making your code cleaner for simple, sing
 *   **Handle Errors Gracefully:** Don't let your function crash. Use `try...except` blocks to catch potential errors and return a proper failure `status` dictionary with a clear `reason`.
 *   **Use Type Hinting:** While not required, adding type hints (e.g., `url: str`) to your function signature makes your code easier to read and understand.
 *   **Add a Unit Test:** Use the IDE's "Run & Test" feature to create a `run_config` block for your agent. This embeds a test directly into the agent's definition, ensuring it remains reliable as the framework evolves.
+
+
+Of course. This is a crucial philosophical point about the framework's design. Adding this section will elevate the guide from a technical "how-to" to an architectural "why."
+
+Here is the extension, designed to be added as a final, high-level section to the guide.
+
+---
+
+### 5. The Agent as the Domain Expert
+
+Beyond the technical implementation, it's essential to understand the core design philosophy of a `proc` agent: **The agent is the single source of truth and the domain expert for the task it performs.**
+
+This means that all the specialized knowledge required to perform a task reliably—including error handling, retry policies, and protocol-specific behaviors—should be encapsulated *inside* the agent itself, not managed by the workflow that calls it. The workflow should remain simple, declarative, and largely ignorant of the complex inner workings of the agents it orchestrates.
+
+#### An Agent Sets Its Own Policies
+
+Consider an agent that communicates with an external API. This API might have specific rules:
+*   It might return a `429 Too Many Requests` status code when the rate limit is exceeded.
+*   It might occasionally fail with a `503 Service Unavailable` error during maintenance.
+*   It might require an exponential backoff strategy for retries.
+
+This specialized knowledge does not belong in the workflow. The workflow's job is to say, "get me the data." The agent's job is to be the **expert** on *how* to get that data reliably from that specific API.
+
+The agent, as the domain expert, is therefore responsible for implementing its own policies.
+
+*   **Retry Policy:** The agent knows which error codes are transient and worth retrying (`503`) and which are permanent and should cause an immediate failure (`404 Not Found`). It implements its own retry loop with appropriate delays.
+*   **Error Handling:** The agent knows how to parse the specific error messages from the API and can return a clean, standardized failure `reason` to the workflow.
+*   **Data Adaptation:** The agent knows the structure of the API's response and is responsible for parsing it and returning the data in a predictable format, as defined by its `outputs`.
+
+#### Exposing Policies as Overridable Inputs
+
+While the agent is the expert, a good expert allows for flexibility. You should expose key policy decisions as **optional inputs** with sensible defaults. This makes your agent powerful by default, but configurable for advanced use cases.
+
+This is achieved by adding parameters to your `optional_inputs` list and the corresponding function signature.
+
+**Example: A Configurable Retry Policy**
+
+Let's upgrade a simple API agent to expose its retry policy.
+
+*   **JSON Definition:**
+    ```json
+    "api_fetcher": {
+      "help": "Fetches data from a specific API with a robust, configurable retry policy.",
+      "inputs": ["endpoint"],
+      "optional_inputs": ["max_retries", "initial_delay"], // <-- Exposing the policy
+      "outputs": ["api_data"],
+      "function": "api_fetcher",
+      "function_def": "..."
+    }
+    ```
+
+*   **Python Function:**
+    ```python
+    def api_fetcher(endpoint: str, output: list, max_retries: int = 3, initial_delay: int = 5) -> tuple:
+        # 'max_retries' and 'initial_delay' have sensible defaults...
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                # ... make API call ...
+                if response.status_code == 200:
+                    return response.json(), {"status": {"value": 0, "reason": "Success"}}
+                
+                # ... check for retryable status codes ...
+                if is_retryable and attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2 # Exponential backoff
+                    continue
+                
+                # ... handle permanent failure ...
+
+            except Exception as e:
+                # ... handle network exceptions ...
+
+        # If the loop finishes, all retries failed
+        return {}, {"status": {"value": 1, "reason": "Request failed after all retries."}}
+    ```
+
+#### How This Empowers the Developer
+
+By designing your agents this way:
+
+1.  **Simplicity for the 90% Use Case:** A workflow developer can simply call the agent without worrying about its retry logic.
+    ```json
+    { "agent": "api_fetcher", "params": { "endpoint": "/users" }, "output": ["user_list"] }
+    ```
+
+2.  **Power for the 10% Use Case:** For a particularly slow or flaky endpoint, a developer can override the default policy directly in the workflow step, without ever needing to modify the agent's code.
+    ```json
+    {
+      "agent": "api_fetcher",
+      "params": {
+        "endpoint": "/reports",
+        "max_retries": "5",       // <-- Overriding the policy
+        "initial_delay": "10"
+      },
+      "output": ["report_data"]
+    }
+    ```
+
+By embedding expertise and policy within your agents and exposing them as configurable inputs, you create components that are not just reusable, but also intelligent, resilient, and adaptable to the specific needs of any workflow.
