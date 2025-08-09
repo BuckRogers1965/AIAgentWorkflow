@@ -1,6 +1,11 @@
-#mac gargage
+#mac garbage
 .DS_Store
 ._*
+
+# extra testing files
+unit_testing/Test-Report-*
+unit_testing/hello.world2
+unit_testing/test.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
