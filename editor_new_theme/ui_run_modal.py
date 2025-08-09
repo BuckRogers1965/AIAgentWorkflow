@@ -169,7 +169,8 @@ class RunAgentModal(ctk.CTkToplevel):
                 agent_name=self.agent_name, 
                 config=temp_config, 
                 cli_args=workflow_inputs, 
-                results={}
+                results={},
+                force_recompile=True
             )
         except Exception as e:
             final_result_tape = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
