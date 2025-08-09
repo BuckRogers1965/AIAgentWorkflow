@@ -243,3 +243,75 @@ By designing your agents this way:
     ```
 
 By embedding expertise and policy within your agents and exposing them as configurable inputs, you create components that are not just reusable, but also intelligent, resilient, and adaptable to the specific needs of any workflow.
+
+
+---
+
+### 6. Secure Secret Management
+
+A robust workflow often needs to interact with protected services, requiring sensitive information like API keys, usernames, and passwords. It is a critical security risk to hardcode these secrets directly into your `config.json` file.
+
+The framework provides a secure, professional-grade solution for this by using **environment variables**. This allows you to keep your secrets completely separate from your agent's logic.
+
+#### The `ENV_` Convention: A Reference, Not a Value
+
+The engine has a special convention for handling secrets. If any value for an `input` or `optional_input` in a workflow step begins with the prefix `ENV_`, it is treated as a **placeholder for an environment variable**.
+
+*   **`"password": "my_secret_password"`**: **INSECURE.** The secret is hardcoded.
+*   **`"password": "ENV_DATABASE_PASSWORD"`**: **SECURE.** This is a reference. The agent will look for an environment variable named `DATABASE_PASSWORD`.
+
+#### The Just-In-Time Secret Injection Lifecycle
+
+The framework is designed to handle these secrets with maximum security by minimizing their exposure. The actual secret value exists in memory for the shortest possible time.
+
+Here’s the lifecycle of a secret when a `proc` agent is called:
+
+1.  **Workflow Logging:** The main engine logs the parameters for the step. At this point, it only sees the placeholder. The log will safely show `'password': 'ENV_DATABASE_PASSWORD'`, **never the real password**.
+
+2.  **`proc` Executor is Called:** The engine passes the parameters, including the placeholder string, to the specialized `proc` agent executor.
+
+3.  **Last-Second Substitution:** Just before your Python function is called, the `proc` executor performs a substitution:
+    *   It scans the parameters for any value starting with `ENV_`.
+    *   It looks up the corresponding variable (e.g., `DATABASE_PASSWORD`) in the operating system's environment.
+    *   It creates a **temporary, in-memory copy** of the arguments, replacing the placeholder with the real secret.
+
+4.  **Secure Function Execution:** Your Python function is called with the real secret. It can now authenticate with the external service.
+
+5.  **Immediate Discard:** As soon as your function finishes executing, the temporary, in-memory copy of the arguments containing the real secret is discarded and garbage-collected by Python.
+
+The secret is never written to a log file and never persists in the workflow's state after the agent has completed its task.
+
+#### How to Use It in Practice
+
+**Step 1: Set Your Environment Variables**
+Before running your workflow, set the required environment variables in your terminal or system configuration.
+
+*   **On Linux or macOS:**
+    ```bash
+    export MY_API_KEY="abc-123-def-456"
+    export MY_SECRET_USER="admin"
+    ```
+*   **On Windows (Command Prompt):**
+    ```cmd
+    set MY_API_KEY="abc-123-def-456"
+    set MY_SECRET_USER="admin"
+    ```
+
+**Step 2: Reference Them in Your Workflow**
+When defining a workflow step (or in an agent's `run_config` for testing), use the `ENV_` prefix.
+
+```json
+// Inside a workflow's "steps" array...
+{
+  "agent": "sftp_get",
+  "params": {
+    "hostname": "ftp.example.com",
+    "username": "ENV_MY_SECRET_USER",
+    "password": "ENV_MY_API_KEY",
+    "remote_path": "/data/report.csv"
+  },
+  "output": ["report_content"]
+}
+```
+
+By following this pattern, you can build powerful agents that interact with secure services while keeping your `config.json` file completely free of sensitive information. This makes your workflows secure, portable, and ready for deployment in any environment.
