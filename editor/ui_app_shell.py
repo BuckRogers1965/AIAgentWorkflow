@@ -32,7 +32,8 @@ class GlobalConfigEditorModal(ctk.CTkToplevel):
         content_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         main_font = (self.theme['fonts']['main_family'], self.theme['fonts']['main_size'])
-        code_font = (self.theme['fonts']['code_family'], self.theme['fonts']['code_size'])
+        code_font = (self.theme['fonts']['editor_code_family'], self.theme['fonts']['editor_code_size'])
+
 
         ctk.CTkLabel(content_frame, text="Global Configuration (JSON)", font=(self.theme['fonts']['main_family'], 16, "bold")).pack(pady=(0, 10))
         ctk.CTkLabel(content_frame, text="⚠️ Warning: This editor modifies all configuration except agents. Edit carefully!", text_color=self.theme['colors']['warning']).pack(pady=(0, 10))
