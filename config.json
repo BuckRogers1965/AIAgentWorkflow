@@ -208,12 +208,15 @@
           }
         ]
       },
-      "optional_inputs": []
+      "optional_inputs": [],
+      "web_services": [
+        "public_api"
+      ]
     },
     "append_text": {
       "web_services": [
         "public_api",
-        "internal_tools"
+        "test_add"
       ],
       "type": "template",
       "inputs": [
@@ -916,14 +919,21 @@
       "type": "proc",
       "help": "will extract json from an ai responses gets everything between the first { and last } inclusive.",
       "function": "extract_json",
-      "function_def": "import json_repair\ndef extract_json(data: bytes, output: list) -> bytes:\n    # Find the first occurrence of '{'\n    try:\n        data = data.replace('\\\\n', '\\n')\n        data = re.sub(r'}\\s*{', '},{', data)\n        start_index = None\n        #pdb.set_trace()\n        for i, char in enumerate(data):\n            if char == '{':\n                start_index = i\n                break\n\n        if start_index is None:\n            return data, {\"status\": {\"value\": 1, \"reason\": \"Failed to find start tag\"}}\n\n        # Find the last occurrence of '}'\n        end_index = None\n        for i in range(len(data) - 1, start_index, -1):\n            if data[i] == '}':\n                end_index = i\n                break\n\n        if end_index is None:\n            return data, {\"status\": {\"value\": 1, \"reason\": \"Failed to find end tag\"}}\n        result = data[start_index:end_index + 1]\n\n        fixed_result = repair_json(result)\n        parsed_result = json.loads(fixed_result)\n\n        # If output[0] key is present in parsed_result, no need to add it again\n        return parsed_result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n    except Exception as e:\n        return data, {\"status\": {\"value\": 1, \"reason\": str(e)}}",
+      "function_def": "import json\nimport json_repair\nimport re\ndef extract_json(data: bytes, output: list) -> bytes:\n    # Find the first occurrence of '{'\n    try:\n        data = data.replace('\\\\n', '\\n')\n        data = re.sub(r'}\\s*{', '},{', data)\n        start_index = None\n        #pdb.set_trace()\n        for i, char in enumerate(data):\n            if char == '{':\n                start_index = i\n                break\n\n        if start_index is None:\n            return data, {\"status\": {\"value\": 1, \"reason\": \"Failed to find start tag\"}}\n\n        # Find the last occurrence of '}'\n        end_index = None\n        for i in range(len(data) - 1, start_index, -1):\n            if data[i] == '}':\n                end_index = i\n                break\n\n        if end_index is None:\n            return data, {\"status\": {\"value\": 1, \"reason\": \"Failed to find end tag\"}}\n        result = data[start_index:end_index + 1]\n\n        fixed_result = json_repair.repair_json(result)\n        parsed_result = json.loads(fixed_result)\n\n        # If output[0] key is present in parsed_result, no need to add it again\n        return parsed_result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n    except Exception as e:\n        return data, {\"status\": {\"value\": 1, \"reason\": str(e)}}",
       "inputs": [
         "data"
       ],
       "optional_inputs": [],
       "outputs": [
         "json"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "data": "{\"start\": 5}"
+        },
+        "last_log_level": "DEBUG",
+        "tests": []
+      }
     },
     "extract_json_trim": {
       "type": "proc",
@@ -965,6 +975,55 @@
       ],
       "optional_inputs": [],
       "prompt": "You are an expert at fact checking draft documents of the topic: {topic}. You are careful to rewrite the paper so that it is factually, without leaving your extraneous remarks in the paper. Your role as the fact-checking agent is to ensure the accuracy and reliability of any given topic presented in a thesis or draft document. You will identify any discrepancies, errors, or misinformation and correct them while still preserving the original meaning and intent of the author's work. This requires  citing reliable sources, and suggesting alternative arguments or evidence that could strengthen the author's thesis. Use the following draft to support the thesis: {thesis}, correcting any mistakes you find, {draft}"
+    },
+    "fetch": {
+      "type": "proc",
+      "help": "A generic data retrieval agent that supports multiple protocols. It automatically uses the correct handler based on the URL scheme. Includes robust, protocol-specific retry logic for HTTP/S and FTP/S connections.",
+      "inputs": [
+        "url"
+      ],
+      "optional_inputs": [
+        "headers",
+        "timeout_seconds",
+        "username",
+        "password",
+        "passive_mode",
+        "base_dir"
+      ],
+      "outputs": [
+        "content",
+        "metadata"
+      ],
+      "function": "fetch",
+      "function_def": "import requests\nimport time\nimport json\nimport re\nimport logging\nimport os\nfrom typing import Dict, Union, Optional, Tuple, Any\nfrom urllib.parse import urlparse\nfrom ftplib import FTP, FTP_TLS, error_perm\nfrom io import BytesIO\nfrom os.path import dirname, basename\n\n# --- HTTP Helper with Retry Logic ---\ndef _fetch_http(url: str, headers: Optional[dict], timeout_seconds: Optional[int]) -> Tuple[bytes, Dict[str, Any]]:\n    parsed_url = urlparse(url)\n    is_secure_protocol = parsed_url.scheme == 'https'\n    if is_secure_protocol:\n        hostname = parsed_url.hostname\n        if not hostname or re.match(r'^((127\\.)|(10\\.)|(172\\.(1[6-9]|2[0-9]|3[0-1])\\.)|(192\\.168\\.)|(0\\.)|^(localhost))', hostname):\n            raise ValueError('Security Error: HTTPS URL targets a forbidden internal address.')\n        effective_timeout = timeout_seconds if timeout_seconds is not None else 30\n    else:\n        effective_timeout = timeout_seconds if timeout_seconds is not None else 600\n    \n    max_retries: int = 3\n    retry_delays = [5, 10, 15]\n    retryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n    for attempt in range(max_retries):\n        try:\n            response = requests.get(url, headers=headers, timeout=effective_timeout)\n            if response.status_code == 200:\n                metadata = {'status_code': response.status_code, 'headers': dict(response.headers)}\n                return response.content, metadata\n            if response.status_code in retryable_status_codes and attempt < max_retries - 1:\n                time.sleep(retry_delays[attempt])\n                continue\n            response.raise_for_status() # Raise exception for non-retryable bad status\n        except requests.exceptions.RequestException as e:\n            logging.warning(f\"HTTP attempt {attempt + 1}/{max_retries} failed for {url}: {e}\")\n            if attempt < max_retries - 1:\n                time.sleep(retry_delays[attempt])\n            else:\n                raise # Re-raise the last exception if all retries fail\n    raise ValueError(\"HTTP fetch failed after all retries.\")\n\n# --- FTP Helper with Retry Logic ---\ndef _fetch_ftp(url: str, username: str, password: str, passive_mode: bool) -> Tuple[Union[bytes, str], Dict[str, Any]]:\n    parsed_url = urlparse(url)\n    ftp_host = parsed_url.hostname\n    remote_path = parsed_url.path\n    port = parsed_url.port or (21 if parsed_url.scheme == 'ftp' else 990)\n    is_ftps = parsed_url.scheme == 'ftps'\n    \n    def is_permanent_failure(e: Exception) -> bool:\n        if isinstance(e, error_perm):\n            return any(code in str(e).lower() for code in [\"550\", \"530\", \"553\", \"501\", \"502\"])\n        return False\n\n    max_retries = 5\n    backoff_base = 1\n    for attempt in range(1, max_retries + 1):\n        try:\n            ftp = FTP_TLS(timeout=10) if is_ftps else FTP(timeout=10)\n            ftp.connect(ftp_host, port)\n            ftp.login(user=username, passwd=password)\n            if is_ftps: ftp.prot_p()\n            ftp.set_pasv(passive_mode)\n            if remote_path.endswith('/'):\n                lines = []\n                ftp.retrlines(f'NLST {remote_path.rstrip(\"/\")}', lines.append)\n                result = '\\n'.join(lines)\n                metadata = {'host': ftp_host, 'path': remote_path, 'type': 'directory'}\n            else:\n                bio = BytesIO()\n                ftp.retrbinary(f'RETR {remote_path}', bio.write)\n                result = bio.getvalue()\n                metadata = {'host': ftp_host, 'path': remote_path, 'type': 'file', 'size': len(result)}\n            ftp.quit()\n            return result, metadata\n        except Exception as e:\n            if is_permanent_failure(e):\n                raise ValueError(f\"Permanent FTP failure: {e}\") from e\n            logging.warning(f\"FTP attempt {attempt}/{max_retries} failed for {url}: {e}\")\n            if attempt == max_retries:\n                raise # Re-raise the final exception\n            time.sleep(backoff_base * 2 ** (attempt - 1))\n    raise ValueError(\"FTP fetch failed after all retries.\")\n\n# --- File Helper (No Retry Needed) ---\ndef _fetch_file(url: str, base_dir: Optional[str]) -> Tuple[bytes, Dict[str, Any]]:\n    effective_base_dir = base_dir if base_dir is not None else os.getcwd()\n    file_path = os.path.abspath(os.path.join(effective_base_dir, urlparse(url).path.lstrip('/\\\\')))\n    if not file_path.startswith(os.path.abspath(effective_base_dir)):\n        raise ValueError('Security Error: Path traversal attempt detected.')\n    with open(file_path, 'rb') as f:\n        content = f.read()\n    metadata = {'path': file_path, 'size': len(content)}\n    return content, metadata\n\n# --- Main Dispatcher Function ---\ndef fetch(url: str, output: list, headers: Optional[Dict] = None, timeout_seconds: Optional[int] = None, username: str = 'anonymous', password: str = '', passive_mode: bool = True, base_dir: Optional[str] = None) -> tuple:\n    try:\n        scheme = urlparse(url).scheme\n        if scheme in ['http', 'https']: handler, args = _fetch_http, (url, headers, timeout_seconds)\n        elif scheme in ['ftp', 'ftps']: handler, args = _fetch_ftp, (url, username, password, passive_mode)\n        elif scheme == 'file': handler, args = _fetch_file, (url, base_dir)\n        else: return {}, {\"status\": {\"value\": 1, \"reason\": f\"Unsupported protocol scheme: '{scheme}'\"}}\n        content, metadata = handler(*args)\n        result_dict = {output[0]: content}\n        if len(output) > 1: result_dict[output[1]] = metadata\n        return result_dict, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n    except Exception as e:\n        logging.error(f\"Fetch failed for URL '{url}': {e}\", exc_info=False)\n        return {}, {\"status\": {\"value\": 1, \"reason\": f\"Failed to fetch data: {e}\"}}",
+      "run_config": {
+        "last_inputs": {
+          "url": "https://www.google.com"
+        },
+        "last_log_level": "INFO",
+        "tests": []
+      }
+    },
+    "fetch_old": {
+      "type": "proc",
+      "help": "A generic data retrieval agent that supports multiple protocols. It automatically uses the correct handler based on the URL scheme (e.g., 'https://', 'ftp://', 'file://'). All protocol-specific options are provided as optional inputs.",
+      "inputs": [
+        "url"
+      ],
+      "optional_inputs": [
+        "headers",
+        "timeout_seconds",
+        "username",
+        "password",
+        "passive_mode",
+        "base_dir"
+      ],
+      "outputs": [
+        "content",
+        "metadata"
+      ],
+      "function": "fetch",
+      "function_def": "import requests\nimport time\nimport json\nimport re\nimport logging\nimport os\nfrom typing import Dict, Union, Optional, Tuple, Any\nfrom urllib.parse import urlparse\nfrom ftplib import FTP, FTP_TLS, error_perm\nfrom io import BytesIO\nfrom os.path import dirname, basename\n\n# --- HTTP Helper ---\ndef _fetch_http(url: str, headers: Optional[dict], timeout_seconds: Optional[int]) -> Tuple[bytes, Dict[str, Any]]:\n    parsed_url = urlparse(url)\n    is_secure_protocol = parsed_url.scheme == 'https'\n    if is_secure_protocol:\n        hostname = parsed_url.hostname\n        if not hostname or re.match(r'^((127\\.)|(10\\.)|(172\\.(1[6-9]|2[0-9]|3[0-1])\\.)|(192\\.168\\.)|(0\\.)|^(localhost))', hostname):\n            raise ValueError('Security Error: HTTPS URL targets a forbidden internal address.')\n        effective_timeout = timeout_seconds if timeout_seconds is not None else 30\n    else:\n        effective_timeout = timeout_seconds if timeout_seconds is not None else 600\n    response = requests.get(url, headers=headers, timeout=effective_timeout)\n    response.raise_for_status()\n    metadata = {'status_code': response.status_code, 'headers': dict(response.headers)}\n    return response.content, metadata\n\n# --- FTP Helper ---\ndef _fetch_ftp(url: str, username: str, password: str, passive_mode: bool) -> Tuple[Union[bytes, str], Dict[str, Any]]:\n    parsed_url = urlparse(url)\n    ftp_host = parsed_url.hostname\n    remote_path = parsed_url.path\n    port = parsed_url.port or (21 if parsed_url.scheme == 'ftp' else 990)\n    is_ftps = parsed_url.scheme == 'ftps'\n    ftp = FTP_TLS(timeout=10) if is_ftps else FTP(timeout=10)\n    ftp.connect(ftp_host, port)\n    ftp.login(user=username, passwd=password)\n    if is_ftps:\n        ftp.prot_p()\n    ftp.set_pasv(passive_mode)\n    if remote_path.endswith('/'):\n        lines = []\n        ftp.retrlines(f'NLST {remote_path}', lines.append)\n        result = '\\n'.join(lines)\n        metadata = {'host': ftp_host, 'path': remote_path, 'type': 'directory'}\n    else:\n        bio = BytesIO()\n        ftp.retrbinary(f'RETR {remote_path}', bio.write)\n        result = bio.getvalue()\n        metadata = {'host': ftp_host, 'path': remote_path, 'type': 'file', 'size': len(result)}\n    ftp.quit()\n    return result, metadata\n\n# --- File Helper ---\ndef _fetch_file(url: str, base_dir: Optional[str]) -> Tuple[bytes, Dict[str, Any]]:\n    effective_base_dir = base_dir if base_dir is not None else os.getcwd()\n    file_path = os.path.abspath(os.path.join(effective_base_dir, urlparse(url).path.lstrip('/')))\n    if os.path.commonprefix([file_path, os.path.abspath(effective_base_dir)]) != os.path.abspath(effective_base_dir):\n        raise ValueError('Security Error: Path traversal attempt detected.')\n    with open(file_path, 'rb') as f:\n        content = f.read()\n    metadata = {'path': file_path, 'size': len(content)}\n    return content, metadata\n\n# --- Main Dispatcher Function ---\ndef fetch(url: str, output: list, headers: Optional[Dict] = None, timeout_seconds: Optional[int] = None, username: str = 'anonymous', password: str = '', passive_mode: bool = True, base_dir: Optional[str] = None) -> tuple:\n    try:\n        scheme = urlparse(url).scheme\n        if scheme in ['http', 'https']: handler, args = _fetch_http, (url, headers, timeout_seconds)\n        elif scheme in ['ftp', 'ftps']: handler, args = _fetch_ftp, (url, username, password, passive_mode)\n        elif scheme == 'file': handler, args = _fetch_file, (url, base_dir)\n        else: return {}, {\"status\": {\"value\": 1, \"reason\": f\"Unsupported protocol scheme: '{scheme}'\"}}\n        content, metadata = handler(*args)\n        result_dict = {output[0]: content}\n        if len(output) > 1: result_dict[output[1]] = metadata\n        return result_dict, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n    except Exception as e:\n        logging.error(f\"Fetch failed for URL '{url}': {e}\", exc_info=False)\n        return {}, {\"status\": {\"value\": 1, \"reason\": f\"Failed to fetch data: {e}\"}}\n"
     },
     "file_copy_b64_workflow": {
       "type": "workflow",
@@ -1316,7 +1375,7 @@
           "agent": "create_long_ollama_payload",
           "params": {
             "prompt": "$prompt",
-            "model": "dagbs/darkidol-llama-3.1-8b-instruct-1.0-uncensored"
+            "model": "hf.co/DavidAU/L3-DARKEST-PLANET-Seven-Rings-Of-DOOM-16.5B-GGUF:latest"
           },
           "output": [
             "payload"
@@ -1325,8 +1384,8 @@
         {
           "agent": "create_url",
           "params": {
-            "host": "http://192.168.1.57:11434",
-            "endpoint": "/api/generate"
+            "endpoint": "/api/generate",
+            "host": "http://192.168.4.253:11434"
           },
           "output": [
             "url"
@@ -1353,7 +1412,14 @@
             "data"
           ]
         }
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "prompt": "hello"
+        },
+        "last_log_level": "INFO",
+        "tests": []
+      }
     },
     "get_ollama_response": {
       "type": "workflow",
@@ -1370,7 +1436,7 @@
           "agent": "create_ollama_payload",
           "params": {
             "prompt": "$prompt",
-            "model": "nsheth/llama-3-lumimaid-8b-v0.1-iq-imatrix:latest"
+            "model": "hf.co/DavidAU/L3-DARKEST-PLANET-Seven-Rings-Of-DOOM-16.5B-GGUF:latest"
           },
           "output": [
             "payload"
@@ -1379,8 +1445,8 @@
         {
           "agent": "create_url",
           "params": {
-            "host": "http://192.168.1.179:11434",
-            "endpoint": "/api/generate"
+            "endpoint": "/api/generate",
+            "host": "http://192.168.4.253:11434"
           },
           "output": [
             "url"
@@ -1407,7 +1473,15 @@
             "data"
           ]
         }
-      ]
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "prompt": "hello"
+        },
+        "last_log_level": "DEBUG",
+        "tests": []
+      }
     },
     "get_sd_response": {
       "type": "workflow",
@@ -2136,6 +2210,14 @@
       "function": "",
       "function_def": ""
     },
+    "new_template_1": {
+      "type": "template",
+      "help": "",
+      "inputs": [],
+      "optional_inputs": [],
+      "outputs": [],
+      "prompt": ""
+    },
     "new_workflow_1": {
       "type": "workflow",
       "help": "",
@@ -2329,6 +2411,58 @@
         "split_len"
       ]
     },
+    "scp_get": {
+      "type": "proc",
+      "help": "Securely downloads a file from a remote host using SCP (Secure Copy Protocol).",
+      "inputs": [
+        "hostname",
+        "username",
+        "password",
+        "remote_path"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "file_content"
+      ],
+      "function": "scp_get",
+      "function_def": "import paramiko\nimport logging\nimport os\nimport tempfile\nfrom scp import SCPClient\nfrom typing import List\n\ndef scp_get(hostname: str, username: str, password: str, remote_path: str, output: List[str]) -> tuple:\n    \"\"\"\n    Establishes an SSH connection and uses SCP to download a file via a temporary local file.\n    This is the only method compatible with this version of the scp library.\n    \"\"\"\n    ssh = None\n    temp_file_path = None\n    try:\n        ssh = paramiko.SSHClient()\n        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())\n        ssh.connect(hostname, username=username, password=password, timeout=30)\n\n        # 1. Create a secure temporary file and get its path (a string).\n        with tempfile.NamedTemporaryFile(delete=False) as tmp:\n            temp_file_path = tmp.name\n\n        with SCPClient(ssh.get_transport()) as scp:\n            # 2. Download the remote file to our secure temporary path.\n            # This satisfies the library's requirement for a string path.\n            scp.get(remote_path, local_path=temp_file_path)\n\n        # 3. Read the contents of the temporary file into memory.\n        with open(temp_file_path, 'rb') as f:\n            content = f.read()\n\n        # 4. Return the raw bytes.\n        return content, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n    except Exception as e:\n        logging.error(f\"SCP GET failed for {username}@{hostname}:{remote_path}: {e}\", exc_info=False)\n        return {}, {\"status\": {\"value\": 1, \"reason\": f\"SCP GET failed: {e}\"}}\n    finally:\n        if ssh:\n            ssh.close()\n        # 5. Clean up the temporary file, no matter what happens.\n        if temp_file_path and os.path.exists(temp_file_path):\n            os.remove(temp_file_path)",
+      "run_config": {
+        "last_inputs": {
+          "hostname": "192.168.4.253",
+          "username": "ENV_cms_un",
+          "password": "ENV_cms_pw",
+          "remote_path": "/home/cms/run_forge.sh"
+        },
+        "last_log_level": "INFO",
+        "tests": []
+      }
+    },
+    "scp_get_new": {
+      "type": "proc",
+      "help": "Securely downloads a file from a remote host using SCP (Secure Copy Protocol).",
+      "inputs": [
+        "hostname",
+        "username",
+        "password",
+        "remote_path"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "file_content"
+      ],
+      "function": "scp_get",
+      "function_def": "import paramiko\nimport logging\nfrom typing import List\n\ndef scp_get(hostname: str, username: str, password: str, remote_path: str, output: List[str]) -> tuple:\n    \"\"\"\n    Establishes an SSH connection and uses the SFTP protocol to read a remote file's bytes directly into memory.\n    This function adheres to the 'scp_get' agent contract.\n    \"\"\"\n    ssh = None\n    sftp = None\n    try:\n        ssh = paramiko.SSHClient()\n        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())\n        ssh.connect(hostname, username=username, password=password, timeout=30)\n\n        # Open an SFTP session over the existing SSH connection.\n        sftp = ssh.open_sftp()\n\n        # Open the remote file in binary read mode ('rb').\n        with sftp.open(remote_path, 'rb') as remote_file:\n            # Read the entire raw byte stream from the object.\n            content = remote_file.read()\n\n        # Return the raw bytes.\n        return content, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n    except Exception as e:\n        logging.error(f\"SFTP GET (as scp_get) failed for {username}@{hostname}:{remote_path}: {e}\", exc_info=False)\n        return {}, {\"status\": {\"value\": 1, \"reason\": f\"GET failed: {e}\"}}\n    finally:\n        if sftp:\n            sftp.close()\n        if ssh:\n            ssh.close()",
+      "run_config": {
+        "last_inputs": {
+          "hostname": "192.168.4.253",
+          "username": "ENV_cms_un",
+          "password": "ENV_cms_pw",
+          "remote_path": "/home/cms/run_forge.sh"
+        },
+        "last_log_level": "DEBUG",
+        "tests": []
+      }
+    },
     "singleton": {
       "type": "workflow",
       "help": "A singleton entry to allow agents to execute.",
@@ -2356,6 +2490,22 @@
           ]
         }
       ]
+    },
+    "smart_http_get": {
+      "type": "proc",
+      "help": "Makes an HTTP GET request. Automatically enters secure mode for 'https://' URLs (short timeout, SSRF checks) and insecure mode for 'http://' URLs (long timeout, no checks).",
+      "inputs": [
+        "url"
+      ],
+      "optional_inputs": [
+        "headers",
+        "timeout_seconds"
+      ],
+      "outputs": [
+        "response"
+      ],
+      "function": "smart_http_get",
+      "function_def": "import requests\nimport time\nimport json\nimport re\nimport logging\nfrom typing import Dict, Union, Optional\nfrom urllib.parse import urlparse\n\ndef _is_hostname_private(hostname: str) -> bool:\n    \"\"\"Checks if a given hostname resolves to a private or reserved IP.\"\"\"\n    if not hostname: return True # Treat empty hostname as unsafe\n    private_ip_pattern = re.compile(\n        r\"^((127\\.)|(10\\.)|(172\\.(1[6-9]|2[0-9]|3[0-1])\\.)|(192\\.168\\.)|(0\\.)|(169\\.254\\.))\" \n        r\"|^(localhost)$\"\n    )\n    return bool(private_ip_pattern.match(hostname))\n\ndef smart_http_get(url: str, output:list, headers: Dict[str, str] = None, timeout_seconds: Optional[int] = None) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n    \"\"\"Performs an HTTP GET request, automatically toggling security based on protocol.\"\"\"\n\n    is_secure_protocol = url.lower().startswith('https://')\n\n    if is_secure_protocol:\n        # --- SECURE MODE for https:// ---\n        effective_timeout = int(timeout_seconds) if timeout_seconds is not None else 30\n        try:\n            parsed_url = urlparse(url)\n            if _is_hostname_private(parsed_url.hostname):\n                return b\"\", {\"status\": {\"value\": 1, \"reason\": \"Security Error: HTTPS URL targets a forbidden internal or private IP address.\"}}\n        except Exception as e:\n            return b\"\", {\"status\": {\"value\": 1, \"reason\": f\"URL parsing error: {e}\"}}\n    else:\n        # --- INSECURE MODE for http:// ---\n        effective_timeout = int(timeout_seconds) if timeout_seconds is not None else 600\n\n    # Shared request and retry logic\n    max_retries: int = 3\n    retry_delays = [5, 10, 15]\n    headers_dict = json.loads(headers) if isinstance(headers, str) and headers else headers or {}\n\n    for attempt in range(max_retries):\n        try:\n            response = requests.get(url, headers=headers_dict, timeout=effective_timeout)\n            if response.status_code == 200:\n                return response.content, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n            if attempt < max_retries - 1:\n                time.sleep(retry_delays[attempt])\n                continue\n            return b\"\", {\"status\": {\"value\": 1, \"reason\": f\"{response.status_code} HTTP Error after {max_retries} attempts.\"}}\n        except requests.exceptions.RequestException as e:\n            logging.error(f\"Request for {url} failed: {e}\")\n            if attempt < max_retries - 1:\n                time.sleep(retry_delays[attempt])\n                continue\n            return b\"\", {\"status\": {\"value\": 1, \"reason\": f\"Request failed: {e}\"}}\n\n    return b\"\", {\"status\": {\"value\": 1, \"reason\": \"Request failed after max retries.\"}}\n"
     },
     "sqlite": {
       "type": "proc",
@@ -2444,6 +2594,34 @@
       "web_services": [
         "public_api"
       ]
+    },
+    "ssh_exec": {
+      "type": "proc",
+      "help": "Securely executes a command on a remote host via SSH and returns the standard output, standard error, and exit code.",
+      "inputs": [
+        "hostname",
+        "username",
+        "password",
+        "command"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "stdout",
+        "stderr",
+        "exit_code"
+      ],
+      "function": "ssh_exec",
+      "function_def": "import paramiko\nimport logging\nfrom typing import List, Dict, Any\n\ndef ssh_exec(hostname: str, username: str, password: str, command: str, output: List[str]) -> tuple:\n    \"\"\"Establishes an SSH connection, executes a command, and captures the complete result.\"\"\"\n    ssh = None\n    try:\n        ssh = paramiko.SSHClient()\n        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())\n        ssh.connect(hostname, username=username, password=password, timeout=30)\n\n        stdin, stdout, stderr = ssh.exec_command(command)\n\n        # Read the output from the command\n        stdout_bytes = stdout.read()\n        stderr_bytes = stderr.read()\n\n        # Important: Wait for the command to finish and get the exit code\n        exit_code = stdout.channel.recv_exit_status()\n\n        # Decode bytes to strings for easier use in workflows\n        stdout_str = stdout_bytes.decode('utf-8', errors='replace')\n        stderr_str = stderr_bytes.decode('utf-8', errors='replace')\n\n        result_dict = {\n            output[0]: stdout_str,\n            output[1]: stderr_str,\n            output[2]: exit_code\n        }\n\n        return result_dict, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n    except Exception as e:\n        logging.error(f\"SSH EXEC failed for command '{command}' on {username}@{hostname}: {e}\", exc_info=False)\n        return {}, {\"status\": {\"value\": 1, \"reason\": f\"SSH EXEC failed: {e}\"}}\n    finally:\n        if ssh:\n            ssh.close()",
+      "run_config": {
+        "last_inputs": {
+          "hostname": "192.168.4.253",
+          "username": "ENV_cms_un",
+          "password": "ENV_cms_pw",
+          "command": "ls"
+        },
+        "last_log_level": "INFO",
+        "tests": []
+      }
     },
     "story_chapter_outline_prompt": {
       "type": "template",

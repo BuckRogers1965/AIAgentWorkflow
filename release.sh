@@ -51,6 +51,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# uncomment this to do make the release but not post it.
+#exit
+
 echo "✅ Archive created successfully."
 
 echo "✅ Adding new archive to project .."
