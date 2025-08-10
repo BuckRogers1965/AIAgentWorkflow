@@ -182,7 +182,7 @@ class RunAgentModal(ctk.CTkToplevel):
         for textbox in [self.log_textbox, self.output_textbox]: textbox.configure(state="disabled")
         
         self.run_assertions(final_result_tape, final_status)
-        self.tab_view.set("Unit Tests")
+        #self.tab_view.set("Unit Tests")
         
     # ... (The rest of the class is unchanged and should now work) ...
     def create_test_tab_widgets(self):
