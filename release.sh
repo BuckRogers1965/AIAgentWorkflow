@@ -20,6 +20,25 @@ then
     exit 1
 fi
 
+# --- Pre-flight Check: Ensure the working directory is clean ---
+echo "🔎 Checking for uncommitted changes..."
+GIT_STATUS=$(git status --porcelain)
+
+if [ -n "$GIT_STATUS" ]; then
+    echo "❌ Error: Uncommitted changes detected. A release can only be made from a clean working directory."
+    echo "Please commit or stash your changes before creating a release."
+    echo ""
+    echo "Files with changes:"
+    git status # Use the more verbose status here to show the user exactly what's wrong
+    exit 1
+fi
+
+echo "✅ Git status is clean. Proceeding with release..."
+echo ""
+
+# A sanity check point to test the above error states
+# uncomment the following line to stop from making a release
+#exit 0
 
 VERSION="v$(date +'%Y.%m.%d.%H%M')"
 echo "🚀 Preparing release: $VERSION"
