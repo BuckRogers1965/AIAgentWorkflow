@@ -39,7 +39,7 @@ zip -9 "releases/$ARCHIVE_NAME" \
     service_demos/README.md \
     unit_testing/*.py \
     unit_testing/README.md \
-    untilities/config_diff.py
+    utilities/config_diff.py
     
 # Check the exit code of the last command ($?). '0' means success.
 if [ $? -ne 0 ]; then
