@@ -468,22 +468,16 @@ def create_temp_workflow(agent_name, agent_config, config, cli_args):
             temp_workflow['steps'][0]['params'][opt_input] = f"${opt_input}"
     return temp_workflow
 def load_config(default_file_path: str) -> Dict[str, Any]:
-    logging.info(f"Starting : {format}")
-    #logging.debug(f" {format, selector, response_text}")
-
-    # Check if '--config' is in the command line arguments
-    config_file_path = default_file_path
-    if '--config' in sys.argv:
-        # Get the index of '--config' and retrieve the next argument as the config file path
-        config_index = sys.argv.index('--config') + 1
-        if config_index < len(sys.argv):
-            config_file_path = sys.argv[config_index]
-            # Remove '--config' and the file path from sys.argv
-            sys.argv.pop(config_index)  # Remove the file path
-            sys.argv.pop(config_index - 1)  # Remove '--config'
-        else:
-            print("Error: --config option requires a file path argument.")
-            sys.exit(1)
+    logging.info(f"Starting config load")
+    
+    # First stage: Create a minimal parser just for the config file path
+    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser.add_argument('--config', default=default_file_path, 
+                             help='Path to configuration file')
+    
+    # Parse only known args to get the config path, ignore everything else
+    config_args, _ = config_parser.parse_known_args()
+    config_file_path = config_args.config
     
     # Load the JSON config file
     try:
@@ -496,18 +490,22 @@ def load_config(default_file_path: str) -> Dict[str, Any]:
     except json.JSONDecodeError:
         print(f"Error: Configuration file '{config_file_path}' is not a valid JSON.")
         sys.exit(1)
+
 def config_app():
     config = load_config('config.json')
     
-    parser = argparse.ArgumentParser(description="Dynamic Agent Workflow Scriptr")
+    # Second stage: Create the full parser with all options
+    parser = argparse.ArgumentParser(description="Dynamic Agent Workflow Script")
     parser.add_argument('agent', nargs='?', help='Name of the agent to execute')
-    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase output verbosity (e.g., -v, -vv, -vvv)')
+    parser.add_argument('--config', default='config.json', help='Path to configuration file')
+    parser.add_argument('-v', '--verbose', action='count', default=0, 
+                       help='Increase output verbosity (e.g., -v, -vv, -vvv)')
     parser.add_argument('--log-server', help='Enable remote logging to server:port')
-    parser.add_argument('--dryrun', action='store_true', help='Bypasses network call, returns dummy message')
-    
-    args, unknown = parser.parse_known_args()
+    parser.add_argument('--dryrun', action='store_true', 
+                       help='Bypasses network call, returns dummy message')
 
-    if not args.agent:
+    # If no agent specified, show available agents
+    if len(sys.argv) == 1 or (len(sys.argv) == 3 and '--config' in sys.argv):
         print("Available agents:")
         for name, agent in config['agents'].items():
             if name != 'singleton':  # Exclude singleton from the list
@@ -517,26 +515,53 @@ def config_app():
                     print(f"    Optional inputs: {', '.join(agent['optional_inputs'])}")
                 print(f"    Outputs: {', '.join(agent['outputs'])}")
         sys.exit()
+
+    # Parse all arguments to get the agent name first
+    temp_args, _ = parser.parse_known_args()
     
-    agent_config = config['agents'].get(args.agent)
+    if not temp_args.agent:
+        print("Available agents:")
+        for name, agent in config['agents'].items():
+            if name != 'singleton':
+                print(f"  {name}: {agent['help']}")
+                print(f"    Inputs: {', '.join(agent['inputs'])}")
+                if agent.get('optional_inputs'):
+                    print(f"    Optional inputs: {', '.join(agent['optional_inputs'])}")
+                print(f"    Outputs: {', '.join(agent['outputs'])}")
+        sys.exit()
+    
+    agent_config = config['agents'].get(temp_args.agent)
     if not agent_config:
-        print(f"Error: '{args.agent}' is not a valid agent.")
+        print(f"Error: '{temp_args.agent}' is not a valid agent.")
         sys.exit()
 
-    parser = argparse.ArgumentParser(description=agent_config['help'])
-    for input_name in agent_config['inputs']:
-        parser.add_argument(f'--{input_name}', required=True, help=f'Value for {input_name}')
-    for input_name in agent_config.get('optional_inputs', []):
-        parser.add_argument(f'--{input_name}', help=f'Value for {input_name}')
-    parser.add_argument('agent', help='Name of agent to execute')
-    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase output verbosity (e.g., -v, -vv, -vvv)')
-    parser.add_argument('--log-server', help='Enable remote logging to server:port')
-    parser.add_argument('--dryrun', action='store_true', help='Bypasses network call, returns dummy message')
+    # Third stage: Create final parser with agent-specific arguments
+    final_parser = argparse.ArgumentParser(description=agent_config['help'])
+    final_parser.add_argument('agent', help='Name of agent to execute')
+    final_parser.add_argument('--config', default='config.json', help='Path to configuration file')
     
-    args = parser.parse_args()
+    # Add agent-specific required inputs
+    for input_name in agent_config['inputs']:
+        final_parser.add_argument(f'--{input_name}', required=True, 
+                                help=f'Value for {input_name}')
+    
+    # Add agent-specific optional inputs
+    for input_name in agent_config.get('optional_inputs', []):
+        final_parser.add_argument(f'--{input_name}', 
+                                help=f'Value for {input_name}')
+    
+    # Add common arguments
+    final_parser.add_argument('-v', '--verbose', action='count', default=0, 
+                            help='Increase output verbosity (e.g., -v, -vv, -vvv)')
+    final_parser.add_argument('--log-server', help='Enable remote logging to server:port')
+    final_parser.add_argument('--dryrun', action='store_true', 
+                            help='Bypasses network call, returns dummy message')
+    
+    # Final parse with all arguments
+    args = final_parser.parse_args()
     setup_logging(args.verbose, args.log_server)
 
-    # Only add actual entries that appeared on the command line.
+    # Only add actual entries that appeared on the command line
     cli_args = {k: v for k, v in vars(args).items() if v is not None}
 
     return agent_config, config, cli_args, args.agent

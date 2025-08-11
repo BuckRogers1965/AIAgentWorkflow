@@ -31,6 +31,10 @@ parser.add_argument(
     help='Path to the directory containing the dynamic_workflows_agents.py core library.'
 )
 parser.add_argument(
+    '--service',
+    help='Only run tests for agents that have this specific service contract tag.'
+)
+parser.add_argument(
     '--loglevel',
     default='INFO',
     choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
@@ -60,8 +64,6 @@ except ImportError:
     print("FATAL ERROR: Could not import the core workflow engine from 'dynamic_workflows_agents.py'.\n")
     parser.print_help()
     exit(1)
-
-# --- END OF MODIFIED SECTION ---
 
 
 # --- UTILITY CLASSES AND FUNCTIONS (UNCHANGED) ---
@@ -188,7 +190,10 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <h1>&#128270; Agent Test Suite Report</h1>
-        <p>Generated on: {timestamp}</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <span>Generated on: {timestamp}</span>
+            {service_filter_html}
+        </div>
         
         <div class="summary">
             <div class="summary-item">
@@ -247,16 +252,134 @@ class TestRunner:
         agents = config.get('agents', {})
         
         for agent_name, agent_data in agents.items():
-            run_config = agent_data.get('run_config')
-            if not run_config or not run_config.get('tests'):
-                continue
+            if args.service:
+                agent_services = agent_data.get("web_services", [])
+                if args.service not in agent_services:
+                    continue
 
-            self.stats['agents_with_tests'] += 1
-            print(f"Running tests for agent: '{agent_name}'...")
-            self.run_single_agent_test(agent_name, agent_data, config)
+            run_config = agent_data.get('run_config')
+            if not run_config:
+                continue
+    
+            if "test_cases" in run_config: # This is the NEW multi-test format.
+                self.stats['agents_with_tests'] += 1
+                print(f"Running new tests for agent: '{agent_name}'...")
+                self.run_multi_case_tests_for_agent(agent_name, agent_data, config)
+            elif "tests" in run_config: # This is the OLD single-test format.
+                if not run_config.get('tests'):
+                    continue
+                self.stats['agents_with_tests'] += 1
+                print(f"Running tests for agent: '{agent_name}'...")
+                self.run_single_agent_test(agent_name, agent_data, config)
         
         print("--- Test execution complete ---")
         self.generate_report()
+
+    def run_multi_case_tests_for_agent(self, agent_name, agent_data, config):
+        run_config = agent_data['run_config']
+        test_cases = run_config.get("test_cases", [])
+        
+        agent_level_results = []
+        agent_passed_all_cases = True
+        
+        for test_case in test_cases:
+            # Prepare a temporary run_config for the single-test runner
+            temp_run_config = {
+                "last_inputs": test_case.get("inputs", {}),
+                "tests": test_case.get("assertions", [])
+            }
+            temp_agent_data = copy.deepcopy(agent_data)
+            temp_agent_data['run_config'] = temp_run_config
+
+            # This is the original, unchanged single-test logic
+            #----------------------------------------------------------------
+            tests = temp_run_config['tests']
+            workflow_inputs = temp_run_config.get('last_inputs', {})
+            
+            temp_config = copy.deepcopy(config)
+            setup_depth_manager(temp_config)
+            dynamic_workflows_agents.log_text_limit = int(
+                temp_config.get('workflow_settings', {}).get('log_text_limit', 500)
+            )
+            
+            log_stream = io.StringIO()
+            ui_log_handler = logging.StreamHandler(log_stream)
+            formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+            ui_log_handler.setFormatter(formatter)
+            root_logger = logging.getLogger()
+            original_level = root_logger.level
+            root_logger.setLevel(getattr(self, 'loglevel', 'INFO'))
+            root_logger.addHandler(ui_log_handler)
+            
+            final_result_tape, final_status = {}, {"status": {"value": -99, "reason": "Execution did not run"}}
+            try:
+                final_result_tape, final_status = exec_agent(temp_agent_data, agent_name, config=temp_config, cli_args=workflow_inputs, results={})
+            except Exception as e:
+                final_result_tape = {"__error__": "An unhandled exception occurred during workflow execution.", "details": str(e)}
+                logging.exception("Workflow execution failed")
+            finally:
+                root_logger.removeHandler(ui_log_handler)
+                root_logger.setLevel(original_level)
+            #----------------------------------------------------------------
+
+            # Process results for this specific test case
+            assertion_results = []
+            case_passed_all_assertions = True
+            
+            for test in tests:
+                self.stats['total'] += 1
+                
+                output_variable = test["output_variable"]
+                actual_value = final_status.get('status', {}).get('value') if output_variable == 'status.value' else get_nested(final_result_tape, output_variable)
+                expected_value = test["expected_value"]
+                assertion_type = test["assertion_type"]
+                
+                test_passed = False
+                error_msg = ""
+                try:
+                    if assertion_type == "Regex Match":
+                        if actual_value is not None and re.search(str(expected_value), str(actual_value)):
+                            test_passed = True
+                        else:
+                            error_msg = f"Regex '{expected_value}' did not match '{actual_value}'."
+                    elif assertion_type == "Equals":
+                        if actual_value is not None and str(actual_value) == str(expected_value):
+                            test_passed = True
+                        else:
+                            error_msg = f"Expected string '{expected_value}', but got string '{actual_value}'."
+                except Exception as e:
+                    error_msg = f"Assertion failed with exception: {e}"
+
+                if test_passed:
+                    self.stats['passed'] += 1
+                else:
+                    self.stats['failed'] += 1
+                    case_passed_all_assertions = False
+                
+                assertion_results.append({
+                    'assertion': f"{output_variable} [{assertion_type}] '{expected_value}'",
+                    'passed': test_passed,
+                    'error_msg': error_msg
+                })
+
+            if not case_passed_all_assertions:
+                agent_passed_all_cases = False
+
+            agent_level_results.append({
+                'case_name': test_case.get("name", "Unnamed Test"),
+                'case_passed': case_passed_all_assertions,
+                'assertions': assertion_results,
+                'inputs': workflow_inputs,
+                'log': log_stream.getvalue() if not case_passed_all_assertions else "",
+                'final_result': final_result_tape if not case_passed_all_assertions else {}
+            })
+
+        # Append the aggregated results for the entire agent
+        self.results.append({
+            'agent_name': agent_name,
+            'passed_all': agent_passed_all_cases,
+            'test_cases': agent_level_results
+        })
 
     def run_single_agent_test(self, agent_name, agent_data, config):
         run_config = agent_data['run_config']
@@ -345,43 +468,75 @@ class TestRunner:
 
     def generate_report(self):
         results_html = ""
-        for result in sorted(self.results, key=lambda x: (not x['passed_all'], x['agent_name'])):
-            status_class = "pass" if result['passed_all'] else "fail"
-            status_icon = "&#10004;" if result['passed_all'] else "&#10006;"
+        for agent_result in sorted(self.results, key=lambda x: (not x.get('passed_all', True), x['agent_name'])):
+            status_class = "pass" if agent_result.get('passed_all', True) else "fail"
+            status_icon = "&#10004;" if agent_result.get('passed_all', True) else "&#10006;"
             
-            details_html = ""
-            for test in result['tests']:
-                indicator_class = "pass" if test['passed'] else "fail"
-                indicator_text = "PASS" if test['passed'] else "FAIL"
-                
-                error_details = ""
-                if not test['passed']:
-                    error_details = f"<pre><strong>Reason:</strong> {test['error_msg']}</pre>"
+            # This is the new nested structure for the report
+            test_cases_html = ""
+            if 'test_cases' in agent_result: # Handle new format
+                for case in agent_result['test_cases']:
+                    case_status_class = "pass" if case.get('case_passed', True) else "fail"
+                    
+                    assertions_html = ""
+                    for assertion in case.get('assertions', []):
+                        indicator_class = "pass" if assertion['passed'] else "fail"
+                        indicator_text = "PASS" if assertion['passed'] else "FAIL"
+                        error_details = f"<pre><strong>Reason:</strong> {assertion['error_msg']}</pre>" if not assertion['passed'] else ""
+                        assertions_html += f"""
+                        <div class="assertion-row">
+                            <span class="indicator {indicator_class}">{indicator_text}</span>
+                            <code>{assertion['assertion']}</code>
+                        </div>
+                        {error_details}
+                        """
+                    
+                    failure_details_html = ""
+                    if not case.get('case_passed', True):
+                        failure_details_html = f"""
+                        <h4>Inputs Used:</h4>
+                        <pre>{json.dumps(case.get('inputs', {}), indent=2)}</pre>
+                        <h4>Execution Log ({self.loglevel}):</h4>
+                        <pre class="error-log">{case.get('log', '')}</pre>
+                        <h4>Final Result JSON:</h4>
+                        <pre class="error-log">{json.dumps(case.get('final_result', {}), indent=2, cls=CustomJSONEncoder)}</pre>
+                        """
 
-                details_html += f"""
-                <div class="test-case">
-                    <span class="indicator {indicator_class}">{indicator_text}</span>
-                    <code>{test['assertion']}</code>
-                    {error_details}
-                </div>
-                """
-            
-            if not result['passed_all']:
-                details_html += f"""
-                <h4>Execution Log ({self.loglevel}):</h4>
-                <pre class="error-log">{result['log']}</pre>
-                <h4>Final Result JSON:</h4>
-                <pre class="error-log">{json.dumps(result['final_result'], indent=2, cls=CustomJSONEncoder)}</pre>
-                """
+                    test_cases_html += f"""
+                    <div class="test-case">
+                        <h4 class="{case_status_class}">Test Case: {case.get('case_name', 'Unnamed')}</h4>
+                        {assertions_html}
+                        {failure_details_html}
+                    </div>
+                    """
+            elif 'tests' in agent_result: # Handle old format for backward compatibility
+                for test in agent_result['tests']:
+                    indicator_class = "pass" if test['passed'] else "fail"
+                    indicator_text = "PASS" if test['passed'] else "FAIL"
+                    error_details = f"<pre><strong>Reason:</strong> {test['error_msg']}</pre>" if not test['passed'] else ""
+                    test_cases_html += f"""
+                    <div class="test-case">
+                        <span class="indicator {indicator_class}">{indicator_text}</span>
+                        <code>{test['assertion']}</code>
+                        {error_details}
+                    </div>
+                    """
+                if not agent_result.get('passed_all', True):
+                    test_cases_html += f"""
+                    <h4>Execution Log ({self.loglevel}):</h4>
+                    <pre class="error-log">{agent_result.get('log', '')}</pre>
+                    <h4>Final Result JSON:</h4>
+                    <pre class="error-log">{json.dumps(agent_result.get('final_result', {}), indent=2, cls=CustomJSONEncoder)}</pre>
+                    """
 
             results_html += f"""
             <div class="agent-card">
                 <div class="agent-header">
-                    <h3>{result['agent_name']}</h3>
+                    <h3>{agent_result['agent_name']}</h3>
                     <span class="indicator {status_class}">{status_icon}</span>
                 </div>
                 <div class="agent-details">
-                    {details_html}
+                    {test_cases_html}
                 </div>
             </div>
             """
@@ -389,10 +544,11 @@ class TestRunner:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         final_html = HTML_TEMPLATE.format(
             timestamp=timestamp,
-            total_agents=self.stats['agents_with_tests'],
-            total_tests=self.stats['total'],
-            passed_tests=self.stats['passed'],
-            failed_tests=self.stats['failed'],
+            service_filter_html=f'<p><strong>Service Filter:</strong> <code>{args.service}</code></p>' if args.service else '',
+            total_agents=self.stats.get('agents_with_tests', self.stats.get('agents_tested', 0)),
+            total_tests=self.stats.get('total', self.stats.get('test_cases', 0)),
+            passed_tests=self.stats.get('passed', self.stats.get('assertions_passed', 0)),
+            failed_tests=self.stats.get('failed', self.stats.get('assertions_failed', 0)),
             results_html=results_html
         )
         
@@ -401,7 +557,11 @@ class TestRunner:
             f.write(final_html)
             
         print(f"--- Report Generated: {filename} ---")
-        print(f"Summary: {self.stats['passed']} passed, {self.stats['failed']} failed out of {self.stats['total']} tests.")
+        passed_count = self.stats.get('passed', self.stats.get('assertions_passed', 0))
+        failed_count = self.stats.get('failed', self.stats.get('assertions_failed', 0))
+        total_count = passed_count + failed_count
+        print(f"Summary: {passed_count} passed, {failed_count} failed out of {total_count} total assertions.")
+
 
 def main():
     runner = TestRunner(config_path=args.config, loglevel=args.loglevel)
