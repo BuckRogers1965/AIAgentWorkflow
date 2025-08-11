@@ -665,6 +665,34 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
         
         self.refresh_assertions_display([])
 
+    def re_validate_all_inputs(self):
+        """Forces re-validation on all visible input entry fields."""
+        param_hints = self.agent_data.get("gui", {}).get("param_hints", {})
+        
+        # We need to find the actual CTkEntry widget for each input key
+        # This requires iterating through the frames that hold them.
+        all_param_frames = list(self.optional_frames.values())
+        # Find the main frame holding required inputs if it exists
+        for child in self.inputs_scroll_frame.winfo_children():
+            if isinstance(child, ctk.CTkFrame) and hasattr(child, 'winfo_children'):
+                is_param_frame = any(isinstance(w, ctk.CTkEntry) for w in child.winfo_children())
+                if is_param_frame:
+                    all_param_frames.append(child)
+
+        for frame in all_param_frames:
+            entry_widget = None
+            label_widget = None
+            for widget in frame.winfo_children():
+                if isinstance(widget, ctk.CTkEntry):
+                    entry_widget = widget
+                elif isinstance(widget, ctk.CTkLabel):
+                    label_widget = widget
+            
+            if entry_widget and label_widget:
+                key = label_widget.cget("text")
+                if key in param_hints and "validation" in param_hints[key]:
+                    self.validate_entry_with_feedback(key, entry_widget, param_hints[key])
+
     def load_test_case(self, index):
         if 0 <= index < len(self.test_cases):
             self.current_test_case_index = index
@@ -686,6 +714,7 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
             self.after(50, lambda: self.set_all_input_values(inputs_to_load))
             
             self.refresh_assertions_display(test_case.get("assertions", []))
+            self.after(100, self.re_validate_all_inputs)
 
     def set_all_input_values(self, inputs_to_load):
         for key, var in self.input_entries.items():
