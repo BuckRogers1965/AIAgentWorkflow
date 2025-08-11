@@ -4,10 +4,10 @@ from tkinter import ttk, Menu
 import copy
 import time
 import re
-import json # Import json for commented-out debug prints
+import json
 
-# Import the base class from its new module
-from ui_editors import BaseEditorFrame, ListEditorFrame
+# Import the necessary classes from its module
+from ui_editors import BaseEditorFrame, ListEditorFrame, GuiHintsEditorFrame
 
 class PromoteToWorkflowModal(ctk.CTkToplevel):
     def __init__(self, parent, block_inputs, block_outputs, proposed_name):
@@ -116,17 +116,13 @@ class WorkflowEditorFrame(BaseEditorFrame):
         self.bind("<Escape>", self._clear_selection)
 
         self.create_settings_tab(self.tab_view.add("Settings"))
+        self.create_gui_hints_tab(self.tab_view.add("GUI Hints"))
         self.create_inputs_tab(self.tab_view.add("Inputs"))
         self.create_optionals_tab(self.tab_view.add("Optional Inputs"))
         self.create_outputs_tab(self.tab_view.add("Outputs"))
         self.create_steps_tab(self.tab_view.add("Steps"))
 
     def create_settings_tab(self, tab):
-        # --- COMMENTED-OUT INSTRUMENTATION ADDED HERE ---
-        # print("\n" + "="*20 + f" INSTRUMENTATION: WorkflowEditorFrame for '{self.agent_name}' " + "="*20)
-        # print(f"STEP 0: Full self.data dictionary received by editor:\n{json.dumps(self.data, indent=2)}")
-        # --- END OF INSTRUMENTATION ---
-
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         label_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['label_size'], weight="bold")
         main_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['main_size'])
@@ -138,25 +134,20 @@ class WorkflowEditorFrame(BaseEditorFrame):
         ctk.CTkLabel(tab, text="Help Text:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font); self.help_text.insert("1.0", self.data.get("help", "")); self.help_text.pack(fill="x", padx=10, pady=5)
         
-        # --- NEW FIELD ADDED HERE ---
         ctk.CTkLabel(tab, text="Web Service Tags (comma-separated):", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.web_services_entry = ctk.CTkEntry(tab, font=main_font)
-        
-        # --- COMMENTED-OUT INSTRUMENTATION ADDED HERE ---
-        # tags_list = self.data.get("web_services", [])
-        # print(f"STEP 5a: Got web_services list from self.data: {tags_list} (Type: {type(tags_list)})")
-        # display_string = ", ".join(tags_list)
-        # print(f"STEP 5b: Converted list to string: '{display_string}'")
-        # print(f"STEP 5c: Inserting string into web_services_entry.")
-        # --- END OF INSTRUMENTATION ---
-        
         self.web_services_entry.insert(0, ", ".join(self.data.get("web_services", [])))
         self.web_services_entry.pack(fill="x", padx=10, pady=5)
-        # --- END OF NEW FIELD ---
 
         fail_frame = ctk.CTkFrame(tab, fg_color="transparent"); fail_frame.pack(fill="x", padx=10, pady=10)
         self.fail_check_var = ctk.IntVar(value=self.data.get("return_on_fail", 0))
         self.fail_check = ctk.CTkCheckBox(fail_frame, text="Return on Fail", variable=self.fail_check_var, font=main_font); self.fail_check.pack(side="left")
+
+    def create_gui_hints_tab(self, tab):
+        tab.configure(fg_color=self.theme['colors']['bg_secondary'])
+        tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
+        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref)
+        self.gui_hints_frame.grid(row=0, column=0, sticky="nsew")
 
     def create_inputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -436,17 +427,25 @@ class WorkflowEditorFrame(BaseEditorFrame):
         updated_data['name'] = self.name_entry.get().strip()
         updated_data['help'] = self.help_text.get("1.0", "end-1c").strip()
         
-        # --- NEW LOGIC ADDED HERE ---
         tags_string = self.web_services_entry.get().strip()
         tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
         if tags_list:
             updated_data['web_services'] = tags_list
         elif 'web_services' in updated_data:
             del updated_data['web_services']
-        # --- END OF NEW LOGIC ---
         
         updated_data['inputs'] = self.inputs_frame.get_data()
         updated_data['optional_inputs'] = self.optionals_frame.get_data()
         updated_data['outputs'] = self.outputs_frame.get_data()
         updated_data['return_on_fail'] = self.fail_check_var.get()
+
+        # Handle GUI data
+        param_hints = self.gui_hints_frame.get_data()
+        if param_hints:
+            updated_data.setdefault('gui', {})['param_hints'] = param_hints
+        elif 'gui' in updated_data and 'param_hints' in updated_data['gui']:
+            del updated_data['gui']['param_hints']
+            if not updated_data['gui']:
+                del updated_data['gui']
+                
         return updated_data

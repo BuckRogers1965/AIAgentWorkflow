@@ -148,6 +148,267 @@ Inputs, Outputs, and Optional Inputs define the 'signature' of your agent.
 - Optional Inputs: Non-required parameters.
 - Outputs: Variables the agent will produce.
 """
+
+class ValidationRulesModal(ctk.CTkToplevel):
+    def __init__(self, parent, validation_data=None):
+        super().__init__(parent)
+        self.title("Edit Validation Rules")
+        self.geometry("400x300")
+        self.validation_data = copy.deepcopy(validation_data) or {}
+        self.saved = False
+        self.create_widgets()
+        self.transient(parent)
+        self.grab_set()
+
+    def create_widgets(self):
+        self.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(self, text="Type:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        self.type_var = ctk.StringVar(value=self.validation_data.get("type", "None"))
+        type_menu = ctk.CTkOptionMenu(self, variable=self.type_var, values=["None", "string", "integer", "float"])
+        type_menu.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+
+        ctk.CTkLabel(self, text="Min Value:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.min_entry = ctk.CTkEntry(self)
+        self.min_entry.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+        if "min_value" in self.validation_data: self.min_entry.insert(0, str(self.validation_data["min_value"]))
+
+        ctk.CTkLabel(self, text="Max Value:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.max_entry = ctk.CTkEntry(self)
+        self.max_entry.grid(row=2, column=1, padx=10, pady=5, sticky="ew")
+        if "max_value" in self.validation_data: self.max_entry.insert(0, str(self.validation_data["max_value"]))
+
+        ctk.CTkLabel(self, text="Regex:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        self.regex_entry = ctk.CTkEntry(self)
+        self.regex_entry.grid(row=3, column=1, padx=10, pady=5, sticky="ew")
+        if "regex" in self.validation_data: self.regex_entry.insert(0, self.validation_data["regex"])
+        
+        button_frame = ctk.CTkFrame(self, fg_color="transparent")
+        button_frame.grid(row=4, column=0, columnspan=2, pady=20)
+        ctk.CTkButton(button_frame, text="Cancel", command=self.destroy).pack(side="left", padx=10)
+        ctk.CTkButton(button_frame, text="Save", command=self.save).pack(side="right", padx=10)
+
+    def save(self):
+        selected_type = self.type_var.get()
+
+        if selected_type == "None":
+            self.validation_data = {}
+            self.saved = True
+            self.destroy()
+            return
+
+        new_data = {"type": selected_type}
+
+        try:
+            if selected_type in ["integer", "float"]:
+                if self.min_entry.get(): new_data["min_value"] = float(self.min_entry.get()) if selected_type == "float" else int(self.min_entry.get())
+                if self.max_entry.get(): new_data["max_value"] = float(self.max_entry.get()) if selected_type == "float" else int(self.max_entry.get())
+            
+            # For the "string" type, only add the "regex" key if the entry is not empty.
+            if selected_type == "string":
+                if self.regex_entry.get():
+                    new_data["regex"] = self.regex_entry.get()
+                                      
+            self.validation_data = new_data
+            self.saved = True
+            self.destroy()
+        except ValueError: messagebox.showerror("Error", "Min/Max values must be valid numbers.", parent=self)
+
+    def save_old2(self):
+        selected_type = self.type_var.get()
+
+        if selected_type == "None":
+            self.validation_data = {}
+            self.saved = True
+            self.destroy()
+            return
+
+        # If the user selected "regex" in the UI, the backend type is "string"
+        if selected_type == "regex":
+            new_data = {"type": "string"}
+        else:
+            new_data = {"type": selected_type}
+
+        try:
+            # Handle integer/float specific fields
+            if selected_type in ["integer", "float"]:
+                if self.min_entry.get(): new_data["min_value"] = float(self.min_entry.get()) if selected_type == "float" else int(self.min_entry.get())
+                if self.max_entry.get(): new_data["max_value"] = float(self.max_entry.get()) if selected_type == "float" else int(self.max_entry.get())
+            
+            # Handle the regex field for both "string" and "regex" UI selections
+            if selected_type in ["string", "regex"]:
+                if self.regex_entry.get():
+                    new_data["regex"] = self.regex_entry.get()
+                                      
+            self.validation_data = new_data
+            self.saved = True
+            self.destroy()
+        except ValueError: messagebox.showerror("Error", "Min/Max values must be valid numbers.", parent=self)
+
+    def save_old(self):
+        selected_type = self.type_var.get()
+        if selected_type == "None":
+            self.validation_data = {}
+            self.saved = True
+            self.destroy()
+            return
+
+        # Special handling for 'regex' type which maps to 'string' in the backend
+        new_data = {"type": selected_type}
+
+
+        try:
+            if selected_type in ["integer", "float"]:
+                if self.min_entry.get(): new_data["min_value"] = float(self.min_entry.get()) if selected_type == "float" else int(self.min_entry.get())
+                if self.max_entry.get(): new_data["max_value"] = float(self.max_entry.get()) if selected_type == "float" else int(self.max_entry.get())
+            
+            if selected_type in ["string", "regex"]:
+                if self.regex_entry.get():
+                    new_data["regex"] = self.regex_entry.get()
+                                      
+            self.validation_data = new_data
+            self.saved = True
+            self.destroy()
+        except ValueError: messagebox.showerror("Error", "Min/Max values must be valid numbers.", parent=self)
+
+class GuiHintsEditorFrame(ctk.CTkFrame):
+    def __init__(self, master, agent_data, theme, app_ref):
+        super().__init__(master, fg_color="transparent")
+        self.agent_data = agent_data
+        self.theme = theme
+        self.app_ref = app_ref
+        self.hint_cards = {}
+        
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        control_frame = ctk.CTkFrame(self, fg_color="transparent")
+        control_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        self.add_hint_menu = ctk.CTkOptionMenu(control_frame, command=self.add_hint_card)
+        self.add_hint_menu.pack(side="left")
+
+        self.scroll_frame = ctk.CTkScrollableFrame(self)
+        self.scroll_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        
+        self.load_existing_hints()
+        self.populate_dropdown()
+
+    def populate_dropdown(self):
+        all_params = self.agent_data.get("inputs", []) + self.agent_data.get("optional_inputs", [])
+        active_params = self.hint_cards.keys()
+        available_params = sorted([p for p in all_params if p not in active_params])
+        self.add_hint_menu.configure(values=["Add Hint for Parameter..."] + available_params)
+        self.add_hint_menu.set("Add Hint for Parameter...")
+
+    def load_existing_hints(self):
+        param_hints = self.agent_data.get("gui", {}).get("param_hints", {})
+        for param_name, hint_data in param_hints.items():
+            self._create_hint_card(param_name, hint_data)
+
+    def add_hint_card(self, param_name):
+        if "Add Hint" in param_name: return
+        self._create_hint_card(param_name)
+        self.populate_dropdown()
+
+    def _create_hint_card(self, param_name, hint_data=None):
+        if hint_data is None: hint_data = {}
+        
+        card = ctk.CTkFrame(self.scroll_frame, border_width=1)
+        card.pack(fill="x", padx=5, pady=5)
+        card.grid_columnconfigure(1, weight=1)
+        
+        header = ctk.CTkFrame(card, fg_color="transparent")
+        header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        ctk.CTkLabel(header, text=f"Hint for: {param_name}", font=ctk.CTkFont(weight="bold")).pack(side="left")
+        remove_btn = ctk.CTkButton(header, text="X", width=30, fg_color="red", command=lambda p=param_name: self.remove_hint_card(p))
+        remove_btn.pack(side="right")
+        
+        widgets = {}
+        ctk.CTkLabel(card, text="Tooltip:").grid(row=1, column=0, sticky="w", padx=10)
+        tooltip_entry = ctk.CTkEntry(card)
+        tooltip_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=2)
+        tooltip_entry.insert(0, hint_data.get("tooltip", ""))
+        widgets["tooltip"] = tooltip_entry
+
+        ctk.CTkLabel(card, text="Example:").grid(row=2, column=0, sticky="w", padx=10)
+        example_entry = ctk.CTkEntry(card)
+        example_entry.grid(row=2, column=1, sticky="ew", padx=5, pady=2)
+        example_entry.insert(0, hint_data.get("example", ""))
+        widgets["example"] = example_entry
+
+        ctk.CTkLabel(card, text="Data Source:").grid(row=3, column=0, sticky="w", padx=10)
+        
+        gui_sources = self.app_ref.config_manager.config.get("GUI", {})
+        data_source_options = ["Default (Custom)"] + sorted([f"GUI.{key}" for key in gui_sources.keys()])
+        
+        data_source_entry = ctk.CTkEntry(card)
+        data_source_entry.grid(row=4, column=1, sticky="ew", padx=5, pady=2)
+        data_source_entry.insert(0, hint_data.get("data_source", ""))
+        widgets["data_source"] = data_source_entry
+
+        data_source_var = ctk.StringVar()
+        data_source_menu = ctk.CTkOptionMenu(card, variable=data_source_var, values=data_source_options)
+        data_source_menu.grid(row=3, column=1, sticky="ew", padx=5, pady=2)
+        
+        validation_frame = ctk.CTkFrame(card, fg_color="transparent")
+        validation_frame.grid(row=5, column=1, sticky="w", padx=5, pady=2)
+        validation_btn = ctk.CTkButton(validation_frame, text="Edit Validation...")
+        widgets["validation_btn"] = validation_btn
+        validation_btn.pack(side="left")
+        widgets["validation_data"] = hint_data.get("validation", {})
+        
+        def on_menu_select(choice):
+            if choice != "Default (Custom)":
+                data_source_entry.delete(0, "end")
+                data_source_entry.insert(0, choice)
+
+        def on_entry_change(*args):
+            data_source_var.set("Default (Custom)")
+
+        data_source_menu.configure(command=on_menu_select)
+        data_source_entry.bind("<KeyRelease>", on_entry_change)
+
+        initial_ds = hint_data.get("data_source", "")
+        if initial_ds in data_source_options:
+            data_source_var.set(initial_ds)
+        else:
+            data_source_var.set("Default (Custom)")
+            
+        def update_validation_button_state(*args):
+            if tooltip_entry.get(): validation_btn.configure(state="normal")
+            else: validation_btn.configure(state="disabled")
+        tooltip_entry.bind("<KeyRelease>", update_validation_button_state)
+        update_validation_button_state()
+        
+        def open_validation_modal():
+            modal = ValidationRulesModal(self, widgets["validation_data"])
+            self.wait_window(modal)
+            if modal.saved: widgets["validation_data"] = modal.validation_data
+        validation_btn.configure(command=open_validation_modal)
+        
+        self.hint_cards[param_name] = {"card": card, "widgets": widgets}
+
+    def remove_hint_card(self, param_name):
+        if param_name in self.hint_cards:
+            self.hint_cards[param_name]["card"].destroy()
+            del self.hint_cards[param_name]
+            self.populate_dropdown()
+
+    def get_data(self):
+        param_hints = {}
+        for param_name, card_info in self.hint_cards.items():
+            widgets = card_info["widgets"]
+            current_hint = {}
+            if tooltip := widgets["tooltip"].get(): current_hint["tooltip"] = tooltip
+            if example := widgets["example"].get(): current_hint["example"] = example
+            if data_source := widgets["data_source"].get():
+                current_hint["widget_type"] = "preset_selector"
+                current_hint["data_source"] = data_source
+            if current_hint.get("tooltip") and widgets["validation_data"]:
+                current_hint["validation"] = widgets["validation_data"]
+            if current_hint:
+                param_hints[param_name] = current_hint
+        return param_hints
+
 class GuiSettingsModal(ctk.CTkToplevel):
     def __init__(self, parent, gui_data, theme):
         super().__init__(parent)
@@ -248,55 +509,39 @@ class ProcEditorFrame(BaseEditorFrame):
         tab_view.grid(row=0, column=0, sticky="nsew")
         
         self.create_settings_tab(tab_view.add("Settings"))
+        self.create_gui_hints_tab(tab_view.add("GUI Hints"))
         self.create_inputs_tab(tab_view.add("Inputs"))
         self.create_optionals_tab(tab_view.add("Optional Inputs"))
         self.create_outputs_tab(tab_view.add("Outputs"))
         self.create_function_tab(tab_view.add("Function"))
 
     def create_settings_tab(self, tab):
-        #print("\n" + "="*20 + f" INSTRUMENTATION START: ProcEditorFrame for '{self.agent_name}' " + "="*20)
-        #print(f"STEP 0: Full self.data dictionary received by editor:\n{json.dumps(self.data, indent=2)}")
-
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        #print("STEP 1: Tab configured.")
-
+        
         label_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['label_size'], weight="bold")
         main_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['main_size'])
-        #print("STEP 2: Fonts created.")
         
-        #print("STEP 3: Creating Agent Name widgets.")
         ctk.CTkLabel(tab, text="Agent Name:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.name_entry = ctk.CTkEntry(tab, font=main_font)
-        #print(f"STEP 3a: Inserting agent name '{self.agent_name}' into name_entry.")
         self.name_entry.insert(0, self.agent_name)
         self.name_entry.pack(fill="x", padx=10, pady=5)
-        #print("STEP 3b: Agent Name widgets created and populated.")
         
-        #print("STEP 4: Creating Help Text widgets.")
         ctk.CTkLabel(tab, text="Help Text:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font)
-        help_data = self.data.get("help", "")
-        #print(f"STEP 4a: Inserting help text '{help_data[:50]}...' into help_text.")
-        self.help_text.insert("1.0", help_data)
+        self.help_text.insert("1.0", self.data.get("help", ""))
         self.help_text.pack(fill="x", padx=10, pady=5)
-        #print("STEP 4b: Help Text widgets created and populated.")
 
-        #print("STEP 5: Creating Web Service Tags widgets.")
         ctk.CTkLabel(tab, text="Web Service Tags (comma-separated):", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.web_services_entry = ctk.CTkEntry(tab, font=main_font)
-        tags_list = self.data.get("web_services", [])
-        #print(f"STEP 5a: Got web_services list from self.data: {tags_list} (Type: {type(tags_list)})")
-        display_string = ", ".join(tags_list)
-        #print(f"STEP 5b: Converted list to string: '{display_string}'")
-        #print(f"STEP 5c: Inserting string into web_services_entry.")
-        self.web_services_entry.insert(0, display_string)
+        self.web_services_entry.insert(0, ", ".join(self.data.get("web_services", [])))
         self.web_services_entry.pack(fill="x", padx=10, pady=5)
-        #print("STEP 5d: Web Service Tags widgets created and populated.")
-        
-        #print("STEP 6: Creating Advanced GUI Settings button.")
-        ctk.CTkButton(tab, text="Advanced GUI Settings...", command=self.open_gui_settings).pack(anchor="w", padx=10, pady=10)
-        #print("="*20 + " INSTRUMENTATION END: ProcEditorFrame " + "="*20 + "\n")
 
+    def create_gui_hints_tab(self, tab):
+        tab.configure(fg_color=self.theme['colors']['bg_secondary'])
+        tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
+        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref)
+        self.gui_hints_frame.grid(row=0, column=0, sticky="nsew")
+        ctk.CTkButton(tab, text="Advanced GUI Settings (for Workflow Editor)...", command=self.open_gui_settings).grid(row=1, column=0, sticky="ew", padx=10, pady=10)
 
     def create_inputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -324,11 +569,19 @@ class ProcEditorFrame(BaseEditorFrame):
         self.func_def_text = CTkCodeEditor(tab, theme=self.theme); self.func_def_text.insert("1.0", self.data.get("function_def", "")); self.func_def_text.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
     
     def open_gui_settings(self):
-        modal = self.GuiSettingsModal(self, self.data.get("gui", {}), self.theme); self.wait_window(modal)
+        # This modal only edits the non-param_hints parts of the gui key
+        other_gui_data = {k: v for k, v in self.data.get("gui", {}).items() if k != 'param_hints'}
+        modal = self.GuiSettingsModal(self, other_gui_data, self.theme)
+        self.wait_window(modal)
         if modal.saved:
-            updated_gui_data = modal.get_result()
-            if updated_gui_data: self.data["gui"] = updated_gui_data
-            elif "gui" in self.data: del self.data["gui"]
+            updated_other_gui_data = modal.get_result()
+            self.data.setdefault("gui", {})
+            # Clear old non-param_hints keys
+            for key in list(self.data["gui"].keys()):
+                if key != 'param_hints': del self.data["gui"][key]
+            # Add new non-param_hints keys
+            if updated_other_gui_data:
+                self.data["gui"].update(updated_other_gui_data)
 
     def get_data(self):
         updated_data = copy.deepcopy(self.data)
@@ -337,16 +590,25 @@ class ProcEditorFrame(BaseEditorFrame):
         
         tags_string = self.web_services_entry.get().strip()
         tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
-        if tags_list:
-            updated_data['web_services'] = tags_list
-        elif 'web_services' in updated_data:
-            del updated_data['web_services']
+        if tags_list: updated_data['web_services'] = tags_list
+        elif 'web_services' in updated_data: del updated_data['web_services']
             
         updated_data['inputs'] = self.inputs_frame.get_data()
         updated_data['optional_inputs'] = self.optionals_frame.get_data()
         updated_data['outputs'] = self.outputs_frame.get_data()
         updated_data['function'] = self.func_name_entry.get()
         updated_data['function_def'] = self.func_def_text.get("1.0", "end-1c").strip()
+        
+        # Handle GUI data
+        param_hints = self.gui_hints_frame.get_data()
+        other_gui_data = {k: v for k, v in updated_data.get("gui", {}).items() if k != 'param_hints'}
+        if param_hints or other_gui_data:
+            updated_data['gui'] = other_gui_data
+            if param_hints:
+                updated_data['gui']['param_hints'] = param_hints
+        elif 'gui' in updated_data:
+            del updated_data['gui']
+            
         return updated_data
 
 class TemplateEditorFrame(BaseEditorFrame):
@@ -356,52 +618,38 @@ class TemplateEditorFrame(BaseEditorFrame):
         tab_view.grid(row=0, column=0, sticky="nsew")
 
         self.create_settings_tab(tab_view.add("Settings"))
+        self.create_gui_hints_tab(tab_view.add("GUI Hints"))
         self.create_inputs_tab(tab_view.add("Inputs"))
         self.create_optionals_tab(tab_view.add("Optional Inputs"))
         self.create_outputs_tab(tab_view.add("Outputs"))
         self.create_prompt_tab(tab_view.add("Prompt"))
 
     def create_settings_tab(self, tab):
-        #print("\n" + "="*20 + f" INSTRUMENTATION START: TemplateEditorFrame for '{self.agent_name}' " + "="*20)
-        #print(f"STEP 0: Full self.data dictionary received by editor:\n{json.dumps(self.data, indent=2)}")
-
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        #print("STEP 1: Tab configured.")
-
+        
         label_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['label_size'], weight="bold")
         main_font = ctk.CTkFont(family=self.theme['fonts']['main_family'], size=self.theme['fonts']['main_size'])
-        #print("STEP 2: Fonts created.")
         
-        #print("STEP 3: Creating Agent Name widgets.")
         ctk.CTkLabel(tab, text="Agent Name:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.name_entry = ctk.CTkEntry(tab, font=main_font)
-        #print(f"STEP 3a: Inserting agent name '{self.agent_name}' into name_entry.")
         self.name_entry.insert(0, self.agent_name)
         self.name_entry.pack(fill="x", padx=10, pady=5)
-        #print("STEP 3b: Agent Name widgets created and populated.")
         
-        #print("STEP 4: Creating Help Text widgets.")
         ctk.CTkLabel(tab, text="Help Text:", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.help_text = ctk.CTkTextbox(tab, height=200, font=main_font)
-        help_data = self.data.get("help", "")
-        #print(f"STEP 4a: Inserting help text '{help_data[:50]}...' into help_text.")
-        self.help_text.insert("1.0", help_data)
+        self.help_text.insert("1.0", self.data.get("help", ""))
         self.help_text.pack(fill="x", padx=10, pady=5)
-        #print("STEP 4b: Help Text widgets created and populated.")
 
-        #print("STEP 5: Creating Web Service Tags widgets.")
         ctk.CTkLabel(tab, text="Web Service Tags (comma-separated):", font=label_font).pack(anchor="w", padx=10, pady=(10, 0))
         self.web_services_entry = ctk.CTkEntry(tab, font=main_font)
-        tags_list = self.data.get("web_services", [])
-        #print(f"STEP 5a: Got web_services list from self.data: {tags_list} (Type: {type(tags_list)})")
-        display_string = ", ".join(tags_list)
-        #print(f"STEP 5b: Converted list to string: '{display_string}'")
-        #print(f"STEP 5c: Inserting string into web_services_entry.")
-        self.web_services_entry.insert(0, display_string)
+        self.web_services_entry.insert(0, ", ".join(self.data.get("web_services", [])))
         self.web_services_entry.pack(fill="x", padx=10, pady=5)
-        #print("STEP 5d: Web Service Tags widgets created and populated.")
-        #print("="*20 + " INSTRUMENTATION END: TemplateEditorFrame " + "="*20 + "\n")
 
+    def create_gui_hints_tab(self, tab):
+        tab.configure(fg_color=self.theme['colors']['bg_secondary'])
+        tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
+        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref)
+        self.gui_hints_frame.grid(row=0, column=0, sticky="nsew")
 
     def create_inputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -436,15 +684,23 @@ class TemplateEditorFrame(BaseEditorFrame):
         
         tags_string = self.web_services_entry.get().strip()
         tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
-        if tags_list:
-            updated_data['web_services'] = tags_list
-        elif 'web_services' in updated_data:
-            del updated_data['web_services']
+        if tags_list: updated_data['web_services'] = tags_list
+        elif 'web_services' in updated_data: del updated_data['web_services']
             
         updated_data['inputs'] = self.inputs_frame.get_data()
         updated_data['optional_inputs'] = self.optionals_frame.get_data()
         updated_data['outputs'] = self.outputs_frame.get_data()
         updated_data['prompt'] = self.prompt_text.get("1.0", "end-1c").strip()
+
+        # Handle GUI data
+        param_hints = self.gui_hints_frame.get_data()
+        if param_hints:
+            updated_data.setdefault('gui', {})['param_hints'] = param_hints
+        elif 'gui' in updated_data and 'param_hints' in updated_data['gui']:
+            del updated_data['gui']['param_hints']
+            if not updated_data['gui']:
+                del updated_data['gui']
+
         return updated_data
 
 class JsonEditorFrame(BaseEditorFrame):
