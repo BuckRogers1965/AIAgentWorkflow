@@ -335,15 +335,25 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         self.scroll_frame = ctk.CTkScrollableFrame(self)
         self.scroll_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         
-        self.populate_dropdown()
         self.load_existing_hints()
+        self.populate_dropdown()
 
     def populate_dropdown(self):
+        # This function now correctly uses the stale self.agent_data, but filters
+        # against the live self.hint_cards dictionary, which is the correct logic.
         all_params = self.agent_data.get("inputs", []) + self.agent_data.get("optional_inputs", [])
-        active_params = self.hint_cards.keys()
-        available_params = sorted([p for p in all_params if p not in active_params])
-        self.add_hint_menu.configure(values=["Add Hint for Parameter..."] + available_params)
-        self.add_hint_menu.set("Add Hint for Parameter...")
+        
+        # The key is to check what's currently a card.
+        active_params = self.hint_cards.keys() 
+        
+        available_params = sorted([p for p in all_params if p not in active_params and p])
+        
+        if not available_params:
+            self.add_hint_menu.configure(values=["No available parameters"], state="disabled")
+            self.add_hint_menu.set("No available parameters")
+        else:
+            self.add_hint_menu.configure(values=["Add Hint for Parameter..."] + available_params, state="normal")
+            self.add_hint_menu.set("Add Hint for Parameter...")
 
     def load_existing_hints(self):
         param_hints = self.agent_data.get("gui", {}).get("param_hints", {})
