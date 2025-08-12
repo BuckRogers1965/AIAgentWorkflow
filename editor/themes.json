@@ -26,15 +26,15 @@
         "label_size": 14,
         "title_size": 20,
         "editor_code_family": "SF Mono",
-        "editor_code_size": 13,
+        "editor_code_size": 18,
         "editor_template_family": "Georgia",
-        "editor_template_size": 14,
+        "editor_template_size": 18,
         "editor_step_param_family": "SF Pro Text",
         "editor_step_param_size": 13
       },
       "styles": {
-        "button_corner_radius": 6,
-        "frame_border_width": 1
+        "button_corner_radius": "6",
+        "frame_border_width": "1"
       }
     },
     "Default Light": {

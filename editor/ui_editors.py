@@ -152,8 +152,9 @@ Inputs, Outputs, and Optional Inputs define the 'signature' of your agent.
 class ValidationRulesModal(ctk.CTkToplevel):
     def __init__(self, parent, validation_data=None):
         super().__init__(parent)
+        self.master = parent # Store parent reference
         self.title("Edit Validation Rules")
-        self.geometry("400x300")
+        self.geometry("400x350")
         self.validation_data = copy.deepcopy(validation_data) or {}
         self.saved = False
         self.create_widgets()
@@ -176,20 +177,47 @@ class ValidationRulesModal(ctk.CTkToplevel):
         self.max_entry = ctk.CTkEntry(self)
         self.max_entry.grid(row=2, column=1, padx=10, pady=5, sticky="ew")
         if "max_value" in self.validation_data: self.max_entry.insert(0, str(self.validation_data["max_value"]))
-
+        
         ctk.CTkLabel(self, text="Regex:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        
+        gui_patterns = self.master.app_ref.config_manager.config.get("GUI", {}).get("regex_patterns", {})
+        pattern_options = ["Custom..."] + sorted(gui_patterns.keys())
+        
+        regex_var = ctk.StringVar()
+        regex_menu = ctk.CTkOptionMenu(self, variable=regex_var, values=pattern_options)
+        regex_menu.grid(row=3, column=1, sticky="ew", padx=10, pady=5)
+        
         self.regex_entry = ctk.CTkEntry(self)
-        self.regex_entry.grid(row=3, column=1, padx=10, pady=5, sticky="ew")
+        self.regex_entry.grid(row=4, column=1, sticky="ew", padx=10, pady=5)
         if "regex" in self.validation_data: self.regex_entry.insert(0, self.validation_data["regex"])
         
+        def on_regex_menu_select(choice):
+            if choice != "Custom...":
+                pattern = gui_patterns.get(choice, "")
+                self.regex_entry.delete(0, "end")
+                self.regex_entry.insert(0, pattern)
+
+        def on_regex_entry_change(*args):
+            regex_var.set("Custom...")
+
+        regex_menu.configure(command=on_regex_menu_select)
+        self.regex_entry.bind("<KeyRelease>", on_regex_entry_change)
+
+        initial_regex = self.validation_data.get("regex", "")
+        matching_key = "Custom..."
+        for key, value in gui_patterns.items():
+            if value == initial_regex:
+                matching_key = key
+                break
+        regex_var.set(matching_key)
+
         button_frame = ctk.CTkFrame(self, fg_color="transparent")
-        button_frame.grid(row=4, column=0, columnspan=2, pady=20)
+        button_frame.grid(row=5, column=0, columnspan=2, pady=20)
         ctk.CTkButton(button_frame, text="Cancel", command=self.destroy).pack(side="left", padx=10)
         ctk.CTkButton(button_frame, text="Save", command=self.save).pack(side="right", padx=10)
 
     def save(self):
         selected_type = self.type_var.get()
-
         if selected_type == "None":
             self.validation_data = {}
             self.saved = True
@@ -197,71 +225,12 @@ class ValidationRulesModal(ctk.CTkToplevel):
             return
 
         new_data = {"type": selected_type}
-
         try:
             if selected_type in ["integer", "float"]:
                 if self.min_entry.get(): new_data["min_value"] = float(self.min_entry.get()) if selected_type == "float" else int(self.min_entry.get())
                 if self.max_entry.get(): new_data["max_value"] = float(self.max_entry.get()) if selected_type == "float" else int(self.max_entry.get())
             
-            # For the "string" type, only add the "regex" key if the entry is not empty.
             if selected_type == "string":
-                if self.regex_entry.get():
-                    new_data["regex"] = self.regex_entry.get()
-                                      
-            self.validation_data = new_data
-            self.saved = True
-            self.destroy()
-        except ValueError: messagebox.showerror("Error", "Min/Max values must be valid numbers.", parent=self)
-
-    def save_old2(self):
-        selected_type = self.type_var.get()
-
-        if selected_type == "None":
-            self.validation_data = {}
-            self.saved = True
-            self.destroy()
-            return
-
-        # If the user selected "regex" in the UI, the backend type is "string"
-        if selected_type == "regex":
-            new_data = {"type": "string"}
-        else:
-            new_data = {"type": selected_type}
-
-        try:
-            # Handle integer/float specific fields
-            if selected_type in ["integer", "float"]:
-                if self.min_entry.get(): new_data["min_value"] = float(self.min_entry.get()) if selected_type == "float" else int(self.min_entry.get())
-                if self.max_entry.get(): new_data["max_value"] = float(self.max_entry.get()) if selected_type == "float" else int(self.max_entry.get())
-            
-            # Handle the regex field for both "string" and "regex" UI selections
-            if selected_type in ["string", "regex"]:
-                if self.regex_entry.get():
-                    new_data["regex"] = self.regex_entry.get()
-                                      
-            self.validation_data = new_data
-            self.saved = True
-            self.destroy()
-        except ValueError: messagebox.showerror("Error", "Min/Max values must be valid numbers.", parent=self)
-
-    def save_old(self):
-        selected_type = self.type_var.get()
-        if selected_type == "None":
-            self.validation_data = {}
-            self.saved = True
-            self.destroy()
-            return
-
-        # Special handling for 'regex' type which maps to 'string' in the backend
-        new_data = {"type": selected_type}
-
-
-        try:
-            if selected_type in ["integer", "float"]:
-                if self.min_entry.get(): new_data["min_value"] = float(self.min_entry.get()) if selected_type == "float" else int(self.min_entry.get())
-                if self.max_entry.get(): new_data["max_value"] = float(self.max_entry.get()) if selected_type == "float" else int(self.max_entry.get())
-            
-            if selected_type in ["string", "regex"]:
                 if self.regex_entry.get():
                     new_data["regex"] = self.regex_entry.get()
                                       
@@ -289,8 +258,8 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         self.scroll_frame = ctk.CTkScrollableFrame(self)
         self.scroll_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         
-        self.load_existing_hints()
         self.populate_dropdown()
+        self.load_existing_hints()
 
     def populate_dropdown(self):
         all_params = self.agent_data.get("inputs", []) + self.agent_data.get("optional_inputs", [])
