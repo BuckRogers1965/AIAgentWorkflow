@@ -352,7 +352,7 @@
       "type": "proc",
       "help": "Decodes base64 data",
       "function": "decode_base64",
-      "function_def": "def decode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64decode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+      "function_def": "import base64\n\ndef decode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64decode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
       "inputs": [
         "data"
       ],
@@ -365,7 +365,7 @@
       "type": "proc",
       "help": "Encodes data to base64",
       "function": "encode_base64",
-      "function_def": "def encode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64encode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+      "function_def": "import base64\n\ndef encode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64encode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
       "inputs": [
         "data"
       ],
@@ -1128,7 +1128,7 @@
       "type": "proc",
       "help": "makes an http api request",
       "function": "exec_api_call",
-      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\ndef exec_api_call(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.post(url, headers=headers_dict, data=payload_bytes,timeout=6000)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}\n",
+      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\n\ndef exec_api_call(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.post(url, headers=headers_dict, data=payload_bytes,timeout=6000)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}",
       "inputs": [
         "url",
         "headers",
@@ -1137,13 +1137,33 @@
       "optional_inputs": [],
       "outputs": [
         "response"
-      ]
+      ],
+      "gui": {
+        "param_hints": {
+          "url": {
+            "tooltip": "Uniform Resource Locator",
+            "validation": {
+              "type": "string",
+              "regex": "^https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+"
+            }
+          }
+        }
+      },
+      "run_config": {
+        "last_inputs": {
+          "url": "dgsgssdgsg",
+          "headers": "",
+          "payload": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      }
     },
     "exec_api_call_get": {
       "type": "proc",
       "help": "makes an http api request",
       "function": "exec_api_call_get",
-      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\ndef exec_api_call_get(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.get(url, headers=headers_dict,timeout=30)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}\n",
+      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\ndef exec_api_call_get(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.get(url, headers=headers_dict,timeout=30)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}",
       "inputs": [
         "url",
         "headers",
@@ -1152,7 +1172,67 @@
       "optional_inputs": [],
       "outputs": [
         "response"
-      ]
+      ],
+      "run_config": {
+        "last_inputs": {
+          "url": "",
+          "headers": "",
+          "payload": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "url": {
+            "tooltip": "Uniform Resource Locator",
+            "validation": {
+              "type": "string",
+              "regex": "^https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+"
+            }
+          },
+          "headers": {
+            "tooltip": "The headers to send with the request in the http packet."
+          },
+          "payload": {
+            "tooltip": "Not used for Gets."
+          }
+        }
+      }
+    },
+    "exit_workflow": {
+      "type": "proc",
+      "help": "",
+      "inputs": [
+        "status"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "exit_early_out"
+      ],
+      "function": "exit_workflow",
+      "function_def": "def exit_workflow (status: str, output:list) -> bytes:\n\treturn \"\", {\"status\": {\"value\": 1, \"reason\": status}}",
+      "run_config": {
+        "last_inputs": {},
+        "last_log_level": "INFO",
+        "test_cases": [
+          {
+            "name": "Exit test",
+            "notes": "",
+            "date_added": "2025-08-12T05:44:52.528932",
+            "inputs": {
+              "status": "Exit early test."
+            },
+            "assertions": [
+              {
+                "output_variable": "status.value",
+                "assertion_type": "Equals",
+                "expected_value": "1"
+              }
+            ]
+          }
+        ]
+      }
     },
     "extend_paragraphs_template": {
       "type": "template",
@@ -1572,6 +1652,26 @@
         }
       ]
     },
+    "get_delivery_date": {
+      "type": "proc",
+      "help": "",
+      "inputs": [
+        "tracking_number"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "delivery_date"
+      ],
+      "function": "get_delivery_date",
+      "function_def": "# --- Helper function for FedEx ---\ndef _track_fedex_helper(tn):\n    import requests, json\n    try:\n        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}\n        data = {\n            \"data\": json.dumps({\n                \"TrackPackagesRequest\": {\n                    \"appType\": \"wtrk\", \"uniqueKey\": \"\", \"processingParameters\": {},\n                    \"trackingInfoList\": [{\"trackNumberInfo\": {\"trackingNumber\": tn}}]\n                }\n            }),\n            \"action\": \"trackpackages\", \"locale\": \"en_US\", \"format\": \"json\", \"version\": 99\n        }\n        response = requests.post('https://www.fedex.com/trackingguard/track', headers=headers, data=data, timeout=10)\n        response.raise_for_status()\n        res_json = response.json()\n        package = res_json.get('TrackPackagesResponse', {}).get('packageList', [])[0]\n        status = package.get('keyStatusCD')\n        if status == 'DL': return 'Delivered'\n        est_delivery = package.get('displayEstDeliveryDt')\n        if est_delivery:\n            try: return datetime.datetime.strptime(est_delivery, '%m/%d/%Y').strftime('%Y-%m-%d')\n            except ValueError: return 'In Transit'\n        return 'In Transit'\n    except Exception: return None\n\n# --- Helper function for UPS ---\ndef _track_ups_helper(tn):\n    import requests\n    try:\n        url = f\"https://www.ups.com/track/api/Track/GetStatus?loc=en_US&requester=ST/trackdetails&non_client_side_script=true&tracknum={tn}\"\n        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'}\n        response = requests.get(url, headers=headers, timeout=10)\n        response.raise_for_status()\n        res_json = response.json()\n        status_type = res_json.get('trackDetails', [{}])[0].get('packageStatus')\n        if \"Delivered\" in status_type: return 'Delivered'\n        delivery_date = res_json.get('trackDetails', [{}])[0].get('deliveryDate')\n        if delivery_date: return delivery_date[0].get('date')\n        return 'In Transit'\n    except Exception: return None\n\n# --- Helper function for USPS ---\ndef _track_usps_helper(tn):\n    import requests, re\n    from datetime import datetime\n    try:\n        url = f\"https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1={tn}\"\n        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'}\n        response = requests.get(url, headers=headers, timeout=10)\n        response.raise_for_status()\n        html = response.text\n        if 'class=\"delivery_status_main\"' in html and 'Delivered' in html: return 'Delivered'\n        match = re.search(r'Expected Delivery by <span class=\"nobr\">([\\w\\s,]+)</span>', html)\n        if match:\n            date_str = match.group(1).strip()\n            return datetime.strptime(date_str, '%A, %B %d, %Y').strftime('%Y-%m-%d')\n        return 'In Transit'\n    except Exception: return None\n\n# --- Main Proc Agent Function ---\ndef get_delivery_datee(tracking_number: str, output: list) -> tuple:\n    import re\n    from datetime import datetime\n\n    carrier_patterns = {\n        \"UPS\": (r\"^(1Z[A-Z0-9]{16})$\", _track_ups_helper),\n        \"USPS\": (r\"^(9[0-9]{19,21})$\", _track_usps_helper),\n        \"FedEx\": (r\"^([0-9]{12}|[0-9]{15})$\", _track_fedex_helper)\n    }\n\n    for carrier, (pattern, func) in carrier_patterns.items():\n        if re.match(pattern, tracking_number):\n            result = func(tracking_number)\n            if result:\n                if result == 'In Transit':\n                    return \"Status is 'In Transit', no date available.\", {\"status\": {\"value\": 0, \"reason\": \"Successfully determined status, but no delivery date was provided.\"}}\n                return result, {\"status\": {\"value\": 0, \"reason\": f\"Successfully retrieved status from {carrier}.\"}}\n            else:\n                return \"Invalid Tracking Number\", {\"status\": {\"value\": 0, \"reason\": f\"Number format for {carrier} was valid, but not found in their system.\"}}\n\n    return \"Invalid Tracking Number\", {\"status\": {\"value\": 0, \"reason\": \"The tracking number format did not match any known carrier.\"}}",
+      "run_config": {
+        "last_inputs": {
+          "tracking_number": "dddddd"
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      }
+    },
     "get_groq_response": {
       "type": "workflow",
       "help": "Given a prompt, get the ollama response.",
@@ -1751,7 +1851,7 @@
           ]
         }
       ],
-      "return_on_fail": 0,
+      "return_on_fail": 1,
       "run_config": {
         "last_inputs": {
           "prompt": "hello"
@@ -1925,7 +2025,7 @@
       "type": "proc",
       "help": "handles a well formatted json response using a selector",
       "function": "handle_json_response",
-      "function_def": "def handle_html_response( selector: str, response_text: bytes,output:list) -> bytes:\n\tsoup = BeautifulSoup(response_text, 'html.parser')\n\tresult = soup.select_one(selector).text\n\treturn result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+      "function_def": "from bs4 import BeautifulSoup\n\ndef handle_html_response( selector: str, response_text: bytes,output:list) -> bytes:\n\tsoup = BeautifulSoup(response_text, 'html.parser')\n\tresult = soup.select_one(selector).text\n\treturn result, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
       "inputs": [
         "selector",
         "response_text"

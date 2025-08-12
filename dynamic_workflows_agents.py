@@ -1,29 +1,28 @@
 #!/home/jrogers/Documents/ai/chat/ragserver/venv/bin/python3
 
-from html.parser import HTMLParser
-import argparse
-import json
-import urllib.parse
-from typing import Union, Dict, Any
+#from html.parser import HTMLParser
+#import urllib.parse
+#import socket
+#import requests
+#import lxml as etree
+#import xml.etree.ElementTree as ET
+
+import re
+import time
 import logging
 import logging.handlers
-import socket
-import requests
-import sys
-import re
-import lxml as etree
-import xml.etree.ElementTree as ET
-from bs4 import BeautifulSoup
-import base64
-import pdb
-import time
+import json
+from typing import Union, Dict, Any
 
-''' ==== ==== Proc testing section === === '''
+_proc_agent_namespace = globals().copy()  # create a sandbox name space for proc agent functions
 
-
-'''     ==== ==== Proc section === ===     '''
 import os
 import copy
+import sys
+import argparse
+
+'''     ==== ==== Proc section === ===     '''
+
 def replace_envs(params):
     def replace_env_var(value):
         if isinstance(value, str) and value.startswith("ENV_"):
@@ -49,40 +48,44 @@ def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_de
     logging.info("%sStarting %s" % (spacing, function_name))
     logging.debug("%s******** \n step_params%s" % (spacing, step_params))
     
-    result = b''  # Initialize result as empty bytes
+    result = b''
     status = {"status": {"value": 1, "reason": "Function execution not attempted"}}
     
     try:
-        if force_recompile or function_name not in globals():
+        if force_recompile or function_name not in _proc_agent_namespace:
             if force_recompile:
                 logging.info("%sForce recompile requested for function %s" % (spacing, function_name))
             else:
                 logging.info("%sCreating function %s for the first time" % (spacing, function_name))
             
             logging.debug("%s******** Function definition:\n%s" % (spacing, function_def))
-            # Define the function dynamically
-            exec(function_def, globals())
-        else:
-            logging.info("%sUsing existing cached function %s" % (spacing, function_name))
+            
+            # --- THIS IS THE CORRECTED LINE ---
+            # Execute the function definition using our isolated namespace as its ONLY scope.
+            exec(function_def, _proc_agent_namespace)
+            # --- END OF CORRECTION ---
 
-        func = globals()[function_name]
-        
-        if needs_updated(step_params):
-            updated_step_params = replace_envs(step_params)
         else:
-            updated_step_params = step_params
+            logging.info("%sUsing existing cached function %s from proc namespace" % (spacing, function_name))
+
+        func = _proc_agent_namespace[function_name]
+        
+        updated_step_params = replace_envs(step_params) if needs_updated(step_params) else step_params
         result, status = func(**updated_step_params)
-        # return the status of the function executiong
         
     except Exception as e:
         logging.error("%sAn error occurred while executing %s: %s" % (spacing, function_name, str(e)))
         status = {"status": {"value": 1, "reason": "Error executing %s: %s" % (function_name, str(e))}}
+    finally:
+        if force_recompile and function_name in _proc_agent_namespace:
+            logging.info("%sCleaning up temporary function '%s' from proc namespace." % (spacing, function_name))
+            del _proc_agent_namespace[function_name]
 
     logging.info("%sCompleted %s with status: %s" % (spacing, function_name, str(status)))
     return result, status
 
 '''   ==== ==== Workflow section === ===   '''
-''' == handle scoped variables == '''
+'''      == handle scoped variables ==     '''
 def resolve_value(value: Any, scoped_params: Dict[str, Any]) -> Any:
     if isinstance(value, str) and value.startswith('$'):
         key =  resolve_value (value[1:],scoped_params)
@@ -243,20 +246,6 @@ def update_status_step_index(results, status, return_on_fail, agent_name, durati
     results.update(status)
     results['step_index'] = results['step_index'] +1
     return False
-    spacing = depth_manager.get_spacing()
-    final_results = {}
-    
-    for output in outputs:
-        if output in results:
-            final_results[output] = results[output]
-        else:
-            logging.warning(f"{spacing}Designated output '{output}' not found.")
-            logging.debug(f"{spacing}Available outputs were: {', '.join(results.keys())}")
-    
-    if not final_results:
-        final_results[outputs[0]] = result
-    
-    return final_results
 def get_final_results(results, result, outputs):
     spacing = depth_manager.get_spacing()
     final_results = {}
