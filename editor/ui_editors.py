@@ -16,9 +16,11 @@ class CTkCodeEditor(ctk.CTkFrame):
         
         code_font = ctk.CTkFont(family=theme['fonts']['editor_code_family'], size=theme['fonts']['editor_code_size'])
 
-        self.line_numbers = ctk.CTkTextbox(self, width=40, font=code_font, 
+        four_digit_width = code_font.measure("9999") + 20 
+        self.line_numbers = ctk.CTkTextbox(self, width=four_digit_width, font=code_font, 
                                            fg_color=theme['colors']['bg_tertiary'], 
                                            text_color=theme['colors']['text_secondary'])
+
         self.line_numbers.grid(row=0, column=0, sticky="ns"); self.line_numbers.insert("1.0", "1"); self.line_numbers.configure(state="disabled")
         
         self.textbox = ctk.CTkTextbox(self, font=code_font, wrap="none", 
@@ -82,10 +84,11 @@ class CTkCodeEditor(ctk.CTkFrame):
     def get(self, start, end): return self.textbox.get(start, end)
 
 class ListEditorFrame(ctk.CTkFrame):
-    def __init__(self, master, title, initial_list, theme):
+    def __init__(self, master, title, initial_list, theme, sync_callback=None):
         super().__init__(master, fg_color="transparent")
         self.items = list(initial_list)
         self.theme = theme
+        self.sync_callback = sync_callback  # Callback for auto-sync
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -103,10 +106,14 @@ class ListEditorFrame(ctk.CTkFrame):
     def add_item(self, value=""): 
         self.items.append(value)
         self.refresh()
+        if self.sync_callback:
+            self.sync_callback()
     
     def remove_item(self, index): 
         self.items.pop(index)
         self.refresh()
+        if self.sync_callback:
+            self.sync_callback()
     
     def get_data(self): 
         return [widget.get() for row in self.entries_frame.winfo_children() if isinstance(row, ctk.CTkFrame) for widget in row.winfo_children() if isinstance(widget, ctk.CTkEntry)]
@@ -122,6 +129,8 @@ class ListEditorFrame(ctk.CTkFrame):
             entry = ctk.CTkEntry(row_frame, font=entry_font)
             entry.insert(0, item)
             entry.pack(side="left", fill="x", expand=True)
+            # Add sync on text change
+            entry.bind("<KeyRelease>", lambda e: self.sync_callback() if self.sync_callback else None)
             remove_btn = ctk.CTkButton(row_frame, text="X", width=30, fg_color=self.theme['colors']['error'], command=lambda index=i: self.remove_item(index))
             remove_btn.pack(side="left", padx=5)
 
@@ -148,6 +157,73 @@ Inputs, Outputs, and Optional Inputs define the 'signature' of your agent.
 - Optional Inputs: Non-required parameters.
 - Outputs: Variables the agent will produce.
 """
+
+    def setup_auto_sync(self):
+        """Setup automatic synchronization of UI changes to underlying data"""
+        # Common fields that exist in both proc and template editors
+        if hasattr(self, 'name_entry'):
+            self.name_entry.bind("<KeyRelease>", self.sync_name)
+        if hasattr(self, 'help_text'):
+            self.help_text.bind("<KeyRelease>", self.sync_help)
+        if hasattr(self, 'web_services_entry'):
+            self.web_services_entry.bind("<KeyRelease>", self.sync_web_services)
+        
+        # ProcEditorFrame specific
+        if hasattr(self, 'func_def_text'):
+            self.func_def_text.textbox.bind("<KeyRelease>", self.sync_function_def)
+        if hasattr(self, 'func_name_entry'):
+            self.func_name_entry.bind("<KeyRelease>", self.sync_function_name)
+        
+        # TemplateEditorFrame specific  
+        if hasattr(self, 'prompt_text'):
+            self.prompt_text.bind("<KeyRelease>", self.sync_prompt)
+
+    def sync_name(self, event=None):
+        """Sync agent name to data"""
+        if hasattr(self, 'name_entry'):
+            new_name = self.name_entry.get().strip()
+            if new_name != self.agent_name:
+                self.agent_name = new_name
+                self.data['name'] = new_name
+
+    def sync_help(self, event=None):
+        """Sync help text to data"""
+        if hasattr(self, 'help_text'):
+            self.data['help'] = self.help_text.get("1.0", "end-1c").strip()
+
+    def sync_web_services(self, event=None):
+        """Sync web services to data"""
+        if hasattr(self, 'web_services_entry'):
+            tags_string = self.web_services_entry.get().strip()
+            tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
+            if tags_list:
+                self.data['web_services'] = tags_list
+            elif 'web_services' in self.data:
+                del self.data['web_services']
+
+    def sync_function_def(self, event=None):
+        """Sync function definition text to data"""
+        if hasattr(self, 'func_def_text'):
+            self.data['function_def'] = self.func_def_text.get("1.0", "end-1c").strip()
+
+    def sync_function_name(self, event=None):
+        """Sync function name to data"""
+        if hasattr(self, 'func_name_entry'):
+            self.data['function'] = self.func_name_entry.get()
+
+    def sync_prompt(self, event=None):
+        """Sync prompt text to data"""
+        if hasattr(self, 'prompt_text'):
+            self.data['prompt'] = self.prompt_text.get("1.0", "end-1c").strip()
+
+    def sync_io_data(self):
+        """Sync input/output lists to data"""
+        if hasattr(self, 'inputs_frame'):
+            self.data['inputs'] = self.inputs_frame.get_data()
+        if hasattr(self, 'optionals_frame'):
+            self.data['optional_inputs'] = self.optionals_frame.get_data()
+        if hasattr(self, 'outputs_frame'):
+            self.data['outputs'] = self.outputs_frame.get_data()
 
 class ValidationRulesModal(ctk.CTkToplevel):
     def __init__(self, parent, validation_data=None):
@@ -240,12 +316,13 @@ class ValidationRulesModal(ctk.CTkToplevel):
         except ValueError: messagebox.showerror("Error", "Min/Max values must be valid numbers.", parent=self)
 
 class GuiHintsEditorFrame(ctk.CTkFrame):
-    def __init__(self, master, agent_data, theme, app_ref):
+    def __init__(self, master, agent_data, theme, app_ref, sync_callback=None):
         super().__init__(master, fg_color="transparent")
         self.agent_data = agent_data
         self.theme = theme
         self.app_ref = app_ref
         self.hint_cards = {}
+        self.sync_callback = sync_callback  # Callback for auto-sync
         
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -277,6 +354,8 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         if "Add Hint" in param_name: return
         self._create_hint_card(param_name)
         self.populate_dropdown()
+        if self.sync_callback:
+            self.sync_callback()
 
     def _create_hint_card(self, param_name, hint_data=None):
         if hint_data is None: hint_data = {}
@@ -296,12 +375,14 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         tooltip_entry = ctk.CTkEntry(card)
         tooltip_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=2)
         tooltip_entry.insert(0, hint_data.get("tooltip", ""))
+        tooltip_entry.bind("<KeyRelease>", lambda e: self.sync_callback() if self.sync_callback else None)
         widgets["tooltip"] = tooltip_entry
 
         ctk.CTkLabel(card, text="Example:").grid(row=2, column=0, sticky="w", padx=10)
         example_entry = ctk.CTkEntry(card)
         example_entry.grid(row=2, column=1, sticky="ew", padx=5, pady=2)
         example_entry.insert(0, hint_data.get("example", ""))
+        example_entry.bind("<KeyRelease>", lambda e: self.sync_callback() if self.sync_callback else None)
         widgets["example"] = example_entry
 
         ctk.CTkLabel(card, text="Data Source:").grid(row=3, column=0, sticky="w", padx=10)
@@ -312,6 +393,7 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         data_source_entry = ctk.CTkEntry(card)
         data_source_entry.grid(row=4, column=1, sticky="ew", padx=5, pady=2)
         data_source_entry.insert(0, hint_data.get("data_source", ""))
+        data_source_entry.bind("<KeyRelease>", lambda e: self.sync_callback() if self.sync_callback else None)
         widgets["data_source"] = data_source_entry
 
         data_source_var = ctk.StringVar()
@@ -329,6 +411,8 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
             if choice != "Default (Custom)":
                 data_source_entry.delete(0, "end")
                 data_source_entry.insert(0, choice)
+                if self.sync_callback:
+                    self.sync_callback()
 
         def on_entry_change(*args):
             data_source_var.set("Default (Custom)")
@@ -351,7 +435,10 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         def open_validation_modal():
             modal = ValidationRulesModal(self, widgets["validation_data"])
             self.wait_window(modal)
-            if modal.saved: widgets["validation_data"] = modal.validation_data
+            if modal.saved: 
+                widgets["validation_data"] = modal.validation_data
+                if self.sync_callback:
+                    self.sync_callback()
         validation_btn.configure(command=open_validation_modal)
         
         self.hint_cards[param_name] = {"card": card, "widgets": widgets}
@@ -361,6 +448,8 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
             self.hint_cards[param_name]["card"].destroy()
             del self.hint_cards[param_name]
             self.populate_dropdown()
+            if self.sync_callback:
+                self.sync_callback()
 
     def get_data(self):
         param_hints = {}
@@ -483,6 +572,9 @@ class ProcEditorFrame(BaseEditorFrame):
         self.create_optionals_tab(tab_view.add("Optional Inputs"))
         self.create_outputs_tab(tab_view.add("Outputs"))
         self.create_function_tab(tab_view.add("Function"))
+        
+        # Setup auto-sync after all UI elements are created
+        self.setup_auto_sync()
 
     def create_settings_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -508,21 +600,21 @@ class ProcEditorFrame(BaseEditorFrame):
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
-        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref)
+        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref, self.sync_gui_hints)
         self.gui_hints_frame.grid(row=0, column=0, sticky="nsew")
         ctk.CTkButton(tab, text="Advanced GUI Settings (for Workflow Editor)...", command=self.open_gui_settings).grid(row=1, column=0, sticky="ew", padx=10, pady=10)
 
     def create_inputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        self.inputs_frame = ListEditorFrame(tab, "Required Inputs", self.data.get("inputs", []), self.theme); self.inputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.inputs_frame = ListEditorFrame(tab, "Required Inputs", self.data.get("inputs", []), self.theme, self.sync_io_data); self.inputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
     def create_optionals_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        self.optionals_frame = ListEditorFrame(tab, "Optional Inputs", self.data.get("optional_inputs", []), self.theme); self.optionals_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.optionals_frame = ListEditorFrame(tab, "Optional Inputs", self.data.get("optional_inputs", []), self.theme, self.sync_io_data); self.optionals_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
     def create_outputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        self.outputs_frame = ListEditorFrame(tab, "Outputs", self.data.get("outputs", []), self.theme); self.outputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.outputs_frame = ListEditorFrame(tab, "Outputs", self.data.get("outputs", []), self.theme, self.sync_io_data); self.outputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
     def create_function_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -537,6 +629,17 @@ class ProcEditorFrame(BaseEditorFrame):
         ctk.CTkLabel(tab, text="Function Definition", font=label_font).grid(row=2, column=0, sticky="w", padx=5, pady=(10,0))
         self.func_def_text = CTkCodeEditor(tab, theme=self.theme); self.func_def_text.insert("1.0", self.data.get("function_def", "")); self.func_def_text.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
     
+    def sync_gui_hints(self):
+        """Sync GUI hints to data"""
+        param_hints = self.gui_hints_frame.get_data()
+        other_gui_data = {k: v for k, v in self.data.get("gui", {}).items() if k != 'param_hints'}
+        if param_hints or other_gui_data:
+            self.data['gui'] = other_gui_data
+            if param_hints:
+                self.data['gui']['param_hints'] = param_hints
+        elif 'gui' in self.data:
+            del self.data['gui']
+
     def open_gui_settings(self):
         # This modal only edits the non-param_hints parts of the gui key
         other_gui_data = {k: v for k, v in self.data.get("gui", {}).items() if k != 'param_hints'}
@@ -592,6 +695,9 @@ class TemplateEditorFrame(BaseEditorFrame):
         self.create_optionals_tab(tab_view.add("Optional Inputs"))
         self.create_outputs_tab(tab_view.add("Outputs"))
         self.create_prompt_tab(tab_view.add("Prompt"))
+        
+        # Setup auto-sync after all UI elements are created
+        self.setup_auto_sync()
 
     def create_settings_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -617,20 +723,20 @@ class TemplateEditorFrame(BaseEditorFrame):
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
-        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref)
+        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref, self.sync_gui_hints)
         self.gui_hints_frame.grid(row=0, column=0, sticky="nsew")
 
     def create_inputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        self.inputs_frame = ListEditorFrame(tab, "Required Inputs", self.data.get("inputs", []), self.theme); self.inputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.inputs_frame = ListEditorFrame(tab, "Required Inputs", self.data.get("inputs", []), self.theme, self.sync_io_data); self.inputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
     def create_optionals_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        self.optionals_frame = ListEditorFrame(tab, "Optional Inputs", self.data.get("optional_inputs", []), self.theme); self.optionals_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.optionals_frame = ListEditorFrame(tab, "Optional Inputs", self.data.get("optional_inputs", []), self.theme, self.sync_io_data); self.optionals_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
     def create_outputs_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
-        self.outputs_frame = ListEditorFrame(tab, "Outputs", self.data.get("outputs", []), self.theme); self.outputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.outputs_frame = ListEditorFrame(tab, "Outputs", self.data.get("outputs", []), self.theme, self.sync_io_data); self.outputs_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
     def create_prompt_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
@@ -645,7 +751,17 @@ class TemplateEditorFrame(BaseEditorFrame):
                                           text_color=self.theme['colors']['editor_template_text'])
         self.prompt_text.insert("1.0", self.data.get("prompt", ""))
         self.prompt_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        
+
+    def sync_gui_hints(self):
+        """Sync GUI hints to data"""
+        param_hints = self.gui_hints_frame.get_data()
+        if param_hints:
+            self.data.setdefault('gui', {})['param_hints'] = param_hints
+        elif 'gui' in self.data and 'param_hints' in self.data['gui']:
+            del self.data['gui']['param_hints']
+            if not self.data['gui']:
+                del self.data['gui']
+
     def get_data(self):
         updated_data = copy.deepcopy(self.data)
         updated_data['name'] = self.name_entry.get().strip()
@@ -682,6 +798,22 @@ class JsonEditorFrame(BaseEditorFrame):
         ctk.CTkLabel(self, text="Raw JSON Editor", font=label_font).pack(anchor="w", padx=10, pady=(10,0))
         self.textbox = ctk.CTkTextbox(self, font=code_font); self.textbox.pack(fill="both", expand=True, padx=10, pady=10)
         self.textbox.insert("1.0", json.dumps(self.data, indent=2))
+        
+        # Setup auto-sync for JSON editor
+        self.textbox.bind("<KeyRelease>", self.sync_json_data)
+        
+    def sync_json_data(self, event=None):
+        """Sync JSON text to data - but handle errors gracefully"""
+        try:
+            json_text = self.textbox.get("1.0", "end-1c")
+            parsed_data = json.loads(json_text)
+            # Only update if JSON is valid
+            if isinstance(parsed_data, dict):
+                self.data.clear()
+                self.data.update(parsed_data)
+        except json.JSONDecodeError:
+            # Invalid JSON - don't update data, just continue
+            pass
         
     def get_data(self):
         try:

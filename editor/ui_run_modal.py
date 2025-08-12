@@ -336,8 +336,22 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
     def run_agent_with_inputs(self, inputs, run_name="Test"):
         if not self.core_lib: return {}, {}, "Core engine not loaded."
 
+        # Get a fresh copy of the main config. This copy is stale.
+        temp_config = copy.deepcopy(self.app.config_manager.config)
+
+        # --- THIS IS THE FIX ---
+        # The engine uses the agent's name to look up its definition from the 'config' object.
+        # We MUST inject the live, fresh agent data from the editor (self.agent_data)
+        # into this temporary config object before passing it to the engine.
+        
+        # self.agent_name is the name of the agent we are running.
+        # self.agent_data is the fresh data dictionary from the editor, passed when the modal was created.
+        temp_config['agents'][self.agent_name] = self.agent_data
+        
+        # --- END OF FIX ---
+
         self.core_lib["dynamic_workflows_agents"].log_text_limit = int(
-            self.app.config_manager.config.get('workflow_settings', {}).get('log_text_limit', 500))
+            temp_config.get('workflow_settings', {}).get('log_text_limit', 500))
 
         log_stream = io.StringIO()
         handler = logging.StreamHandler(log_stream)
@@ -349,9 +363,11 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
         
         result, status = {}, {}
         try:
-            temp_config = copy.deepcopy(self.app.config_manager.config)
             self.core_lib["setup_depth_manager"](temp_config)
+            
+            # Now, when exec_agent runs, it will use the temp_config that contains our fresh code.
             result, status = self.core_lib["exec_agent"](self.agent_data, self.agent_name, temp_config, inputs, {}, True)
+            
         except Exception as e:
             logging.error(f"Execution failed for {run_name}: {e}", exc_info=True)
             status = {"status": {"value": 1, "reason": str(e)}}

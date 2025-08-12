@@ -192,6 +192,30 @@ class App(ctk.CTk):
         
     def open_run_modal(self):
         if not self.editor_frame_instance: return
+
+
+        # --- THIS IS THE FIX ---
+        # Before running, we manually collect the live code from the editor
+        # and update the in-memory `self.data` dictionary. This guarantees
+        # that the version we run is the version you see on the screen.
+        
+        agent_type = self.editor_frame_instance.data.get("type")
+        
+        if agent_type == "proc":
+            # For a proc agent, get the current text from the code editor widget.
+            live_function_def = self.editor_frame_instance.func_def_text.get("1.0", "end-1c")
+            # Update the local data copy.
+            self.editor_frame_instance.data['function_def'] = live_function_def
+        
+        elif agent_type == "template":
+            # For a template agent, get the current text from the prompt widget.
+            live_prompt = self.editor_frame_instance.prompt_text.get("1.0", "end-1c")
+            # Update the local data copy.
+            self.editor_frame_instance.data['prompt'] = live_prompt
+            
+        # --- END OF FIX ---
+
+
         current_agent_data = self.editor_frame_instance.get_data()
         if current_agent_data is None:
             messagebox.showerror("Error", "Cannot run agent. Please check editor for errors.")
