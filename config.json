@@ -149,6 +149,18 @@
       "DPM++ 2M Karras": "DPM++ 2M Karras",
       "DPM++ SDE Karras": "DPM++ SDE Karras",
       "LCM": "LCM"
+    },
+    "regex_patterns": {
+      "north_american_phone": "^(?:\\+?1[\\s.-]?)?\\(?[2-9][0-8][0-9]\\)?[\\s.-]?[2-9][0-9]{2}[\\s.-]?[0-9]{4}$",
+      "social_security_number_ssn": "^(?!666|000|9\\d{2})\\d{3}[- ]?(?!00)\\d{2}[- ]?(?!0000)\\d{4}$",
+      "email_address": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+      "ipv4_address": "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+      "iso_8601_date": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?)?$",
+      "us_zip_code_5_or_9": "^\\d{5}(?:-\\d{4})?$",
+      "credit_card_number": "^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9]{2})[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\\d{3})\\d{11})$",
+      "url": "^https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+",
+      "hex_color_code": "^#?([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$",
+      "username_alphanumeric_underscore": "^[a-zA-Z0-9_]{3,20}$"
     }
   },
   "agents": {
@@ -210,7 +222,28 @@
           ]
         }
       ],
-      "return_on_fail": 0
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
     },
     "agent_writing_agent_prompt": {
       "type": "template",
@@ -230,28 +263,54 @@
         "last_inputs": {
           "specialization": "aaa",
           "function_name": "bbb",
-          "input": "ccc",
+          "input": "",
           "output": "ddd",
           "example_scenario": "eee"
         },
         "last_log_level": "INFO",
-        "tests": [
+        "test_cases": [
           {
-            "output_variable": "new_agent_prompt",
-            "assertion_type": "Equals",
-            "expected_value": "AI Agent Design Prompt  You are an AI agent design expert tasked with creating a prompt for a specialized agent in the aaa area. This agent will perform the function of bbb, taking the following inputs: ccc, and producing the output: ddd.  Guidelines:  Define the Agent's Role: Clearly state the purpose of the agent (e.g., providing bbb such as research, drafting, or brainstorming). Think about the task you are automating. Identify what techniques would make the agent as good as possible at that task and instruct them to perform those techniques. Identify Inputs: Specify the required inputs using curly braces {} for replaceable keywords (e.g., {topic}, {depth}, {tone}).  Generate Output Requirements: Define the expected output format, ensuring it meets workflow needs (e.g., plain text, JSON).  Incorporate Examples: Provide sample tasks or scenarios, such as the examples at the end of this article. Emphasize Integration: Design the agent for seamless interaction with other agents, enabling smooth data exchange.  Provide Replaceable Keywords: Ensure outputs include replaceable {keywords} for dynamic updates based on user inputs (e.g., Incorporate examples and data to support {topic}).  Sample Scenario: Provide an example where the agent executes its function: eee. Use {input_1}, {input_2}, etc..  Example 1: Specialization: Brainstorming Function: Generating creative ideas Inputs: [{topic}, {tone}, {research}] Outputs: [{ideas}]. Example 2 The {research_agent} provides {depth} research on {topic}, incorporating examples and studies. The {draft_agent} composes a draft essay using {topic}, {thesis}, and {tone}."
-          },
-          {
-            "output_variable": "status.value",
-            "assertion_type": "Equals",
-            "expected_value": "0"
+            "name": "Imported Legacy Test",
+            "notes": "Automatically migrated from the old single-test format.",
+            "date_added": "2025-08-11T13:08:16.290602",
+            "inputs": {
+              "specialization": "aaa",
+              "function_name": "bbb",
+              "input": "ccc",
+              "output": "ddd",
+              "example_scenario": "eee"
+            },
+            "assertions": [
+              {
+                "output_variable": "new_agent_prompt",
+                "assertion_type": "Equals",
+                "expected_value": "AI Agent Design Prompt  You are an AI agent design expert tasked with creating a prompt for a specialized agent in the aaa area. This agent will perform the function of bbb, taking the following inputs: ccc, and producing the output: ddd.  Guidelines:  Define the Agent's Role: Clearly state the purpose of the agent (e.g., providing bbb such as research, drafting, or brainstorming). Think about the task you are automating. Identify what techniques would make the agent as good as possible at that task and instruct them to perform those techniques. Identify Inputs: Specify the required inputs using curly braces {} for replaceable keywords (e.g., {topic}, {depth}, {tone}).  Generate Output Requirements: Define the expected output format, ensuring it meets workflow needs (e.g., plain text, JSON).  Incorporate Examples: Provide sample tasks or scenarios, such as the examples at the end of this article. Emphasize Integration: Design the agent for seamless interaction with other agents, enabling smooth data exchange.  Provide Replaceable Keywords: Ensure outputs include replaceable {keywords} for dynamic updates based on user inputs (e.g., Incorporate examples and data to support {topic}).  Sample Scenario: Provide an example where the agent executes its function: eee. Use {input_1}, {input_2}, etc..  Example 1: Specialization: Brainstorming Function: Generating creative ideas Inputs: [{topic}, {tone}, {research}] Outputs: [{ideas}]. Example 2 The {research_agent} provides {depth} research on {topic}, incorporating examples and studies. The {draft_agent} composes a draft essay using {topic}, {thesis}, and {tone}."
+              },
+              {
+                "output_variable": "status.value",
+                "assertion_type": "Equals",
+                "expected_value": "0"
+              }
+            ]
           }
         ]
       },
       "optional_inputs": [],
       "web_services": [
         "public_api"
-      ]
+      ],
+      "gui": {
+        "param_hints": {
+          "input": {
+            "tooltip": "test",
+            "example": "test2",
+            "validation": {
+              "type": "string",
+              "regex": "[0-9][0-9]"
+            }
+          }
+        }
+      }
     },
     "append_text": {
       "web_services": [
@@ -288,6 +347,32 @@
         ]
       },
       "optional_inputs": []
+    },
+    "base64_decode": {
+      "type": "proc",
+      "help": "Decodes base64 data",
+      "function": "decode_base64",
+      "function_def": "def decode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64decode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+      "inputs": [
+        "data"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "decoded_data"
+      ]
+    },
+    "base64_encode": {
+      "type": "proc",
+      "help": "Encodes data to base64",
+      "function": "encode_base64",
+      "function_def": "def encode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64encode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
+      "inputs": [
+        "data"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "encoded_data"
+      ]
     },
     "build_google_url_request": {
       "type": "proc",
@@ -330,7 +415,8 @@
         "start"
       ],
       "outputs": [
-        "url"
+        "url",
+        "headers"
       ],
       "run_config": {
         "last_inputs": {
@@ -340,18 +426,38 @@
           "num": "5"
         },
         "last_log_level": "DEBUG",
-        "tests": [
+        "test_cases": [
           {
-            "output_variable": "url",
-            "assertion_type": "Equals",
-            "expected_value": "https://www.googleapis.com/customsearch/v1?q=Why%20is%20the%20sky%20blue%3F&cx=ENV_google_cx&num=5"
-          },
-          {
-            "output_variable": "status.value",
-            "assertion_type": "Equals",
-            "expected_value": "0"
+            "name": "why is the sky blue?",
+            "notes": "testing google custom search",
+            "date_added": "2025-08-11T19:24:06.917439",
+            "inputs": {
+              "request": "Why is the sky blue?",
+              "cx": "ENV_google_cx",
+              "api_key": "ENV_google_api_key",
+              "num": "5"
+            },
+            "assertions": []
           }
         ]
+      },
+      "gui": {
+        "param_hints": {
+          "api_key": {
+            "tooltip": "You need an api key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          },
+          "cx": {
+            "tooltip": "You need a cx key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          }
+        }
       }
     },
     "build_url_request": {
@@ -656,25 +762,6 @@
     "create_sd_payload": {
       "type": "template",
       "help": "Create the string to send a json request to an ollama api",
-      "prompt": "{\"prompt\": \"{prompt}\", \"{negative_prompt}\": \"{negative_prompt}\", \"sampler_name\": \"{sampler_name}\", \"steps\": {steps}, \"cfg_scale\": {cfg_scale}, \"height\": {height}, \"width\": {width},\"seed\": {seed}}",
-      "inputs": [
-        "prompt",
-        "negative_prompt",
-        "sampler_name",
-        "steps",
-        "cfg_scale",
-        "height",
-        "width",
-        "seed"
-      ],
-      "optional_inputs": [],
-      "outputs": [
-        "encoded_image"
-      ]
-    },
-    "create_sd_payload_new": {
-      "type": "template",
-      "help": "Create the string to send a json request to an ollama api",
       "prompt": "{\"prompt\": \"{prompt}\", \"negative_prompt\": \"{negative_prompt}\", \"sampler_name\": \"{sampler_name}\", \"steps\": {steps}, \"cfg_scale\": {cfg_scale}, \"height\": {height}, \"width\": {width},\"seed\": {seed}}",
       "inputs": [
         "prompt",
@@ -701,9 +788,9 @@
             "example": "ugly, deformed, blurry, cartoon, anime, watermark, text"
           },
           "sampler_name": {
+            "tooltip": "The algorithm used to denoise the image during generation. 'Euler a' is a fast and reliable default.",
             "widget_type": "preset_selector",
-            "data_source": "GUI.sd_samplers",
-            "tooltip": "The algorithm used to denoise the image during generation. 'Euler a' is a fast and reliable default."
+            "data_source": "GUI.sd_samplers"
           },
           "steps": {
             "tooltip": "Number of denoising steps. More steps can add detail but take longer. A good range is 20-30.",
@@ -819,19 +906,6 @@
         ]
       }
     },
-    "decode_base64": {
-      "type": "proc",
-      "help": "Decodes base64 data",
-      "function": "decode_base64",
-      "function_def": "def decode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64decode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
-      "inputs": [
-        "data"
-      ],
-      "optional_inputs": [],
-      "outputs": [
-        "decoded_data"
-      ]
-    },
     "draft_agent": {
       "type": "template",
       "help": "Conducts research on a given topic at the specified depth.",
@@ -907,19 +981,6 @@
         "part"
       ]
     },
-    "encode_base64": {
-      "type": "proc",
-      "help": "Encodes data to base64",
-      "function": "encode_base64",
-      "function_def": "def encode_base64(data: bytes,output:list) -> bytes:\n\treturn base64.b64encode(data), {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n",
-      "inputs": [
-        "data"
-      ],
-      "optional_inputs": [],
-      "outputs": [
-        "encoded_data"
-      ]
-    },
     "encode_decode": {
       "type": "workflow",
       "help": "Promoted from a block of steps in 'file_copy_b64_workflow'.",
@@ -932,7 +993,7 @@
       ],
       "steps": [
         {
-          "agent": "encode_base64",
+          "agent": "base64_encode",
           "params": {
             "data": "$file_content"
           },
@@ -941,7 +1002,7 @@
           ]
         },
         {
-          "agent": "decode_base64",
+          "agent": "base64_decode",
           "params": {
             "data": "$encoded_data"
           },
@@ -1239,7 +1300,7 @@
           ]
         },
         {
-          "agent": "encode_base64",
+          "agent": "base64_encode",
           "params": {
             "data": "$file_content"
           },
@@ -1248,7 +1309,7 @@
           ]
         },
         {
-          "agent": "decode_base64",
+          "agent": "base64_decode",
           "params": {
             "data": "$encoded_data"
           },
@@ -1714,33 +1775,17 @@
         {
           "agent": "create_sd_payload",
           "params": {
-            "prompt": "$prompt",
-            "negative_prompt": "$negative_prompt",
-            "sampler_name": "Euler",
             "steps": "30",
-            "cfg_scale": "6",
-            "height": "512",
+            "cfg_scale": "3.2",
+            "sampler_name": "Euler",
             "width": "512",
+            "height": "512",
+            "negative_prompt": "$negative_prompt",
+            "prompt": "$prompt",
             "seed": "-1"
           },
           "output": [
             "payload"
-          ]
-        },
-        {
-          "agent": "create_sd_payload_new",
-          "params": {
-            "prompt": "$prompt",
-            "negative_prompt": "$negative_prompt",
-            "sampler_name": "$sampler_name",
-            "steps": "$steps",
-            "cfg_scale": "$cfg_scale",
-            "height": "$height",
-            "width": "$width",
-            "seed": "$seed"
-          },
-          "output": [
-            "encoded_image"
           ]
         },
         {
@@ -1812,16 +1857,33 @@
         {
           "agent": "exec_api_call_get",
           "params": {
-            "url": "$url",
+            "payload": "",
             "headers": "$headers",
-            "payload": ""
+            "url": "$url"
           },
           "output": [
             "response"
           ]
         }
       ],
-      "return_on_fail": 0
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "request": "why is the sky blue "
+        },
+        "last_log_level": "INFO",
+        "test_cases": [
+          {
+            "name": "why is the sky blue",
+            "notes": "test",
+            "date_added": "2025-08-11T18:57:54.068479",
+            "inputs": {
+              "request": "why is the sky blue "
+            },
+            "assertions": []
+          }
+        ]
+      }
     },
     "groq_text_completion": {
       "type": "proc",
@@ -1972,7 +2034,7 @@
           ]
         },
         {
-          "agent": "decode_base64",
+          "agent": "base64_decode",
           "params": {
             "data": "$image"
           },
@@ -2433,159 +2495,6 @@
         }
       ]
     },
-    "new_proc_1": {
-      "type": "proc",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "function": "",
-      "function_def": ""
-    },
-    "new_proc_2": {
-      "type": "proc",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "function": "",
-      "function_def": ""
-    },
-    "new_proc_3": {
-      "type": "proc",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "function": "",
-      "function_def": ""
-    },
-    "new_template_1": {
-      "type": "template",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "prompt": ""
-    },
-    "new_template_2": {
-      "type": "template",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "prompt": ""
-    },
-    "new_workflow_1": {
-      "type": "workflow",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "return_on_fail": 0,
-      "steps": []
-    },
-    "new_workflow_2": {
-      "type": "workflow",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "return_on_fail": 0,
-      "steps": []
-    },
-    "new_workflow_3": {
-      "type": "workflow",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "return_on_fail": 0,
-      "steps": []
-    },
-    "new_workflow_4": {
-      "type": "workflow",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "return_on_fail": 0,
-      "steps": [
-        {
-          "agent": "loop_start_beta",
-          "params": {
-            "step_index": "$step_index",
-            "loop_max": "$loop_max"
-          },
-          "output": [
-            "loop_start_marker_259874",
-            "loop_max_count_259874",
-            "loop_iterator_259874"
-          ]
-        },
-        {
-          "agent": "loop_start_beta",
-          "params": {
-            "step_index": "$step_index",
-            "loop_max": "$loop_max"
-          },
-          "output": [
-            "loop_start_marker_259854",
-            "loop_max_count_259854",
-            "loop_iterator_259854"
-          ]
-        },
-        {
-          "agent": "loop_end_beta",
-          "params": {
-            "loop_start_marker": "$loop_start_marker_259854",
-            "loop_max_count": "$loop_max_count_259854",
-            "loop_iterator": "$loop_iterator_259854"
-          },
-          "output": [
-            "loop_iterator"
-          ]
-        },
-        {
-          "agent": "loop_end_beta",
-          "params": {
-            "loop_start_marker": "$loop_start_marker_259874",
-            "loop_max_count": "$loop_max_count_259874",
-            "loop_iterator": "$loop_iterator_259874"
-          },
-          "output": [
-            "loop_iterator"
-          ]
-        }
-      ]
-    },
-    "new_workflow_5": {
-      "type": "workflow",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "return_on_fail": 0,
-      "steps": []
-    },
-    "new_workflow_6": {
-      "type": "workflow",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "return_on_fail": 0,
-      "steps": []
-    },
-    "new_workflow_7": {
-      "type": "workflow",
-      "help": "",
-      "inputs": [],
-      "optional_inputs": [],
-      "outputs": [],
-      "return_on_fail": 0,
-      "steps": []
-    },
     "outline_agent": {
       "type": "template",
       "inputs": [
@@ -2614,7 +2523,7 @@
       ],
       "steps": [
         {
-          "agent": "encode_base64",
+          "agent": "base64_encode",
           "params": {
             "data": "$file_content"
           },
@@ -2623,7 +2532,7 @@
           ]
         },
         {
-          "agent": "decode_base64",
+          "agent": "base64_decode",
           "params": {
             "data": "$encoded_data"
           },
@@ -2763,7 +2672,44 @@
           "remote_path": "/home/cms/run_forge.sh"
         },
         "last_log_level": "DEBUG",
-        "tests": []
+        "test_cases": [
+          {
+            "name": "Getting a file from a remote host using scp",
+            "notes": "",
+            "date_added": "2025-08-11T20:42:46.936121",
+            "inputs": {
+              "hostname": "192.168.4.253",
+              "username": "ENV_cms_un",
+              "password": "ENV_cms_pw",
+              "remote_path": "/home/cms/run_forge.sh"
+            },
+            "assertions": [
+              {
+                "output_variable": "status.value",
+                "assertion_type": "Equals",
+                "expected_value": "0"
+              }
+            ]
+          }
+        ]
+      },
+      "gui": {
+        "param_hints": {
+          "password": {
+            "tooltip": "The password on the remote server. We recommend using ENV_ environmental replacement for this field so the value is never logged.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          },
+          "username": {
+            "tooltip": "The password on the remote server. The username on the remote server. We recommend using ENV_ environmental replacement for this field so the value is never logged.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          }
+        }
       }
     },
     "singleton": {
@@ -3913,7 +3859,7 @@
           ]
         },
         {
-          "agent": "decode_base64",
+          "agent": "base64_decode",
           "params": {
             "data": "$image"
           },
@@ -3966,36 +3912,6 @@
         ]
       },
       "optional_inputs": []
-    },
-    "test ere": {
-      "type": "template",
-      "help": "",
-      "inputs": [
-        "there"
-      ],
-      "optional_inputs": [],
-      "outputs": [
-        "output"
-      ],
-      "prompt": "Hello {there}",
-      "run_config": {
-        "last_inputs": {
-          "there": "there"
-        },
-        "last_log_level": "INFO",
-        "tests": [
-          {
-            "output_variable": "output",
-            "assertion_type": "Equals",
-            "expected_value": "Hello there"
-          },
-          {
-            "output_variable": "status.value",
-            "assertion_type": "Equals",
-            "expected_value": "0"
-          }
-        ]
-      }
     },
     "thesis_alignment": {
       "type": "template",
