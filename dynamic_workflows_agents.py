@@ -9,6 +9,7 @@
 
 import re
 import time
+import base64
 import logging
 import logging.handlers
 import json
@@ -20,6 +21,49 @@ import os
 import copy
 import sys
 import argparse
+
+import traceback
+
+# --- OPTIONAL LIBRARY LOADING FOR CODEJAIL ---
+try:
+    from RestrictedPython import compile_restricted
+    from RestrictedPython.Guards import safe_globals
+    from RestrictedPython import safe_builtins, compile_restricted
+    from RestrictedPython.Guards import safe_globals as rp_safe_globals
+    from RestrictedPython.Eval import default_guarded_getiter
+    from RestrictedPython.Guards import guarded_unpack_sequence
+    from RestrictedPython import safe_builtins, compile_restricted
+    from RestrictedPython.Eval import (
+        default_guarded_getattr,
+        default_guarded_getitem,
+        default_guarded_getiter
+    )
+    from RestrictedPython.Guards import (
+        guarded_iter_unpack_sequence,
+        guarded_unpack_sequence
+    )
+
+    # Some versions use _apply_ internally:
+    try:
+        from RestrictedPython.Guards import guarded_apply
+    except ImportError:
+        guarded_apply = lambda func, *a, **kw: func(*a, **kw)
+
+    RESTRICTEDPYTHON_AVAILABLE = True
+    print("INFO: RestrictedPython library found. Sandboxed execution is available.")
+
+except ImportError as e:
+    RESTRICTEDPYTHON_AVAILABLE = False
+    print("WARNING: RestrictedPython library not found. Sandboxed execution will be disabled.")
+#    print("ImportError:", e)
+#    traceback.print_exc()
+except Exception as e:
+    # In case the failure is *not* an ImportError
+    RESTRICTEDPYTHON_AVAILABLE = False
+    print("ERROR while loading RestrictedPython or guards:", e)
+#    traceback.print_exc()
+# --- END OF OPTIONAL LOADING ---
+
 
 '''     ==== ==== Proc section === ===     '''
 
@@ -43,36 +87,72 @@ def needs_updated(params):
         if isinstance(value, str) and value.startswith("ENV_"):
             return True
     return False
-def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_def: str, force_recompile: bool = False) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
+
+
+
+def _execute_jailed(function_name: str, function_def: str,
+                    updated_step_params: Dict[str, Any], jail_config: Dict[str, Any]) -> tuple:
+    jail_script = f'''
+# Future-proof type hints evaluation
+from __future__ import annotations
+{function_def}
+params = {repr(updated_step_params)}
+try:
+    result, status = {function_name}(**params)
+    if isinstance(result, bytes):
+        res_data, res_type = base64.b64encode(result).decode('utf-8'), 'bytes'
+    else:
+        res_data, res_type = json.dumps(result), 'json'
+    output = {{'success': True, 'result_data': res_data, 'result_type': res_type, 'status': status}}
+except Exception as e:
+    output = {{'success': False, 'status': {{'status': {{'value': 1, 'reason': f'Jailed function error: {{repr(e)}}'}}}}}}
+jail_output = output
+'''
+    logging.debug("*jail*script*:\n%s", jail_script)
+    compiled_code = compile_restricted(jail_script, '<string>', 'exec')
+
+    restricted_globals = jail_config['safe_globals'].copy()
+    restricted_globals.update(jail_config['allowed_modules'])
+
+    exec(compiled_code, restricted_globals)
+    jail_output = restricted_globals['jail_output']
+
+    if jail_output['success']:
+        if jail_output['result_type'] == 'bytes':
+            result = base64.b64decode(jail_output['result_data'])
+        else:
+            result = json.loads(jail_output['result_data'])
+        status = jail_output['status']
+    else:
+        result, status = b'', jail_output['status']
+    return result, status
+
+def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_def: str, 
+        force_recompile: bool = False, jail_config: Dict[str, Any] = None
+        )-> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
     spacing = depth_manager.get_spacing()
     logging.info("%sStarting %s" % (spacing, function_name))
     logging.debug("%s******** \n step_params%s" % (spacing, step_params))
-    
+
     result = b''
     status = {"status": {"value": 1, "reason": "Function execution not attempted"}}
     
     try:
-        if force_recompile or function_name not in _proc_agent_namespace:
-            if force_recompile:
-                logging.info("%sForce recompile requested for function %s" % (spacing, function_name))
-            else:
-                logging.info("%sCreating function %s for the first time" % (spacing, function_name))
-            
-            logging.debug("%s******** Function definition:\n%s" % (spacing, function_def))
-            
-            # --- THIS IS THE CORRECTED LINE ---
-            # Execute the function definition using our isolated namespace as its ONLY scope.
-            exec(function_def, _proc_agent_namespace)
-            # --- END OF CORRECTION ---
-
-        else:
-            logging.info("%sUsing existing cached function %s from proc namespace" % (spacing, function_name))
-
-        func = _proc_agent_namespace[function_name]
-        
         updated_step_params = replace_envs(step_params) if needs_updated(step_params) else step_params
-        result, status = func(**updated_step_params)
-        
+        if jail_config is None:
+            if force_recompile or function_name not in _proc_agent_namespace:
+                if force_recompile:
+                    logging.info("%sForce recompile requested for function %s" % (spacing, function_name))
+                else:
+                    logging.info("%sCreating function %s for the first time" % (spacing, function_name))
+                exec(function_def, _proc_agent_namespace)
+            else:
+                logging.info("%sUsing existing cached function %s from proc namespace" % (spacing, function_name))
+            func = _proc_agent_namespace[function_name]
+            result, status = func(**updated_step_params)
+        else:
+            logging.info("%sJailing function %s" % (spacing, function_name))
+            result, status = _execute_jailed(function_name, function_def, updated_step_params, jail_config)    
     except Exception as e:
         logging.error("%sAn error occurred while executing %s: %s" % (spacing, function_name, str(e)))
         status = {"status": {"value": 1, "reason": "Error executing %s: %s" % (function_name, str(e))}}
@@ -355,7 +435,8 @@ def validate_workflow(workflow: Dict[str, Any], config: Dict[str, Any]):
     workflow["_is_validated"] = True
     logging.info(f"{spacing}Workflow validation completed successfully and has been blessed.")
 
-def exec_workflow(workflow: Dict[str, Any], config: Dict[str, Any], cli_args: Dict[str, Any],results,force_recompile: bool = False)->bytes:
+def exec_workflow(workflow: Dict[str, Any], config: Dict[str, Any], cli_args: Dict[str, Any],results,
+                  force_recompile: bool = False, jail_config: Dict[str, Any] = None)->bytes:
     with depth_manager.step() as (depth, spacing):
     
         logging.info(f"{spacing}Executing workflow at depth {depth}")
@@ -377,10 +458,12 @@ def exec_workflow(workflow: Dict[str, Any], config: Dict[str, Any], cli_args: Di
                 if agent_config['type'] == 'template':
                     result, status = build_template(agent_config.get('prompt', ''), scoped_params)
                 elif agent_config['type'] == 'proc':
-                    result, status = exec_proc_agent(agent_config['function'], step_params, agent_config['function_def'], force_recompile)  
+                    result, status = exec_proc_agent(agent_config['function'], step_params, agent_config['function_def'], 
+                                    force_recompile, jail_config)  
                 elif agent_config['type'] == 'workflow':
                     nested_cli_args, nested_workflow = get_nested_args (step, scoped_params, spacing, agent_name, config, cli_args)
-                    result, status = exec_workflow(nested_workflow, config, nested_cli_args, {}, force_recompile)
+                    result, status = exec_workflow(nested_workflow, config, nested_cli_args, {}, 
+                                    force_recompile, jail_config)
                 else:  #unknown agent
                     result = b''
                     status = {"status": {"value": 1, "reason": f"Unknown agent type: {agent_config['type']}"}}
@@ -398,11 +481,12 @@ def exec_workflow(workflow: Dict[str, Any], config: Dict[str, Any], cli_args: Di
         
         return get_final_results(results, result, workflow['outputs']), {"status": {"value": 0, "reason": "Success"}}
 
-def exec_agent(agent: Dict[str, Any], agent_name: str, config: Dict[str, Any], cli_args: Dict[str, Any],results, force_recompile: bool = False)->bytes:
+def exec_agent(agent: Dict[str, Any], agent_name: str, config: Dict[str, Any], cli_args: Dict[str, Any],results, 
+                force_recompile: bool = False, jail_config: Dict[str, Any] = None)->bytes:
     # If the agent has no steps, promote it to a temporary workflow
     if not agent.get('type') in ['workflow']:
-        agent = create_temp_workflow(agent_name, agent, config, cli_args)
-    return  exec_workflow(agent, config, cli_args, results, force_recompile)
+        agent = create_temp_workflow(agent_name, agent, cli_args)
+    return  exec_workflow(agent, config, cli_args, results, force_recompile, jail_config)
 
 '''    ==== ==== main setup section === ===    '''
 def setup_logging(verbose_level, log_server=None):
@@ -435,9 +519,9 @@ def setup_logging(verbose_level, log_server=None):
             logging.info(f"Remote logging enabled to {host}:{port}")
         except Exception as e:
             logging.error(f"Failed to set up remote logging: {e}")
-def create_temp_workflow(agent_name, agent_config, config, cli_args):
+def create_temp_workflow(agent_name, agent_config, cli_args):
     logging.info(f"Creating temporary workflow agent for agent: {agent_name}")
-    logging.debug(f"Agent config: {agent_config}")
+    #logging.debug(f"Agent config: {agent_config}")
 
     # creating a temp workflow to promote an agent that is not a workflow to be a workflow
     temp_workflow = {'type': 'workflow', 'help': 'A singleton entry to allow agents to execute.', 'return_on_fail': 1, 'inputs': [], 'optional_inputs': [], 'outputs': ['image'], 'prompt': '{prompt}', 'steps': [{'agent': '{agent}', 'host': 'stable_diffusion', 'model': '', 'api_call': 'prompting', 'params': {'topic': '$CLI_topic', 'thesis': '$CLI_thesis', 'essay': '$fact_checked_essay', 'tone': '$CLI_tone'}, 'output': ['results']}]}
@@ -463,6 +547,10 @@ def load_config(default_file_path: str) -> Dict[str, Any]:
     config_parser = argparse.ArgumentParser(add_help=False)
     config_parser.add_argument('--config', default=default_file_path, 
                              help='Path to configuration file')
+    if RESTRICTEDPYTHON_AVAILABLE : 
+        config_parser.add_argument('--jail_dir', help='Path to the secure sandbox jail directory.')
+        config_parser.add_argument('--jail_user', default='agent_worker',
+                        help='The low-privilege user for the jail.')
     
     # Parse only known args to get the config path, ignore everything else
     config_args, _ = config_parser.parse_known_args()
@@ -492,6 +580,10 @@ def config_app():
     parser.add_argument('--log-server', help='Enable remote logging to server:port')
     parser.add_argument('--dryrun', action='store_true', 
                        help='Bypasses network call, returns dummy message')
+    if RESTRICTEDPYTHON_AVAILABLE : 
+        parser.add_argument('--jail_dir', help='Path to the secure sandbox jail directory.')
+        parser.add_argument('--jail_user', default='agent_worker',
+                        help='The low-privilege user for the jail.')
 
     # If no agent specified, show available agents
     if len(sys.argv) == 1 or (len(sys.argv) == 3 and '--config' in sys.argv):
@@ -545,6 +637,10 @@ def config_app():
     final_parser.add_argument('--log-server', help='Enable remote logging to server:port')
     final_parser.add_argument('--dryrun', action='store_true', 
                             help='Bypasses network call, returns dummy message')
+    if RESTRICTEDPYTHON_AVAILABLE : 
+        final_parser.add_argument('--jail_dir', help='Path to the secure sandbox jail directory.')
+        final_parser.add_argument('--jail_user', default='agent_worker',
+                        help='The low-privilege user for the jail.')
     
     # Final parse with all arguments
     args = final_parser.parse_args()
@@ -553,7 +649,7 @@ def config_app():
     # Only add actual entries that appeared on the command line
     cli_args = {k: v for k, v in vars(args).items() if v is not None}
 
-    return agent_config, config, cli_args, args.agent
+    return agent_config, config, cli_args, args.agent, args
 def setup_depth_manager(config):
     global depth_manager
 
@@ -565,19 +661,104 @@ def setup_depth_manager(config):
 
     max_depth = config['workflow_settings']['max_depth']
     depth_manager = WorkflowDepthManager(max_depth=max_depth)
+
+import pathlib
+
+def jailed_open(path, mode='r', *args, **kwargs):
+    import builtins
+    import os
+    from pathlib import Path
+
+    # True jail root (on macOS /tmp resolves to /private/tmp)
+    base_dir = Path("/tmp").resolve()
+
+    raw = Path(path)
+
+    # Map absolute paths into the jail by stripping the leading slash
+    # /Users/jrogers/hello -> /tmp/Users/jrogers/hello
+    rel = raw if not raw.is_absolute() else Path(*raw.parts[1:])
+
+    # Compose under jail root, then resolve to collapse any ".." or symlinks
+    target = (base_dir / rel).resolve()
+
+    # Enforce containment after resolution (prevents symlink traversal)
+    try:
+        # Python 3.9+: clean containment check
+        target.relative_to(base_dir)
+    except Exception:
+        if not str(target).startswith(str(base_dir)):
+            raise PermissionError(f"Access denied outside jail: {target}")
+
+    # Read-only policy
+    if any(flag in mode for flag in ('w', 'a', '+', 'x')):
+        raise PermissionError(f"Write modes not allowed: {mode}")
+
+    # Optional: debug
+    print(f"[JAILED OPEN] cwd={os.getcwd()} base_dir={base_dir} raw={raw} -> target={target} mode={mode}")
+
+    return builtins.open(target, mode, *args, **kwargs)
+
+
+def setup_jail_config(args):
+    if not hasattr(args, 'jail_dir') or args.jail_dir is None:
+        return None
+    if not hasattr(args, 'jail_user') or not args.jail_user:
+        print("ERROR: --jail_dir was provided, but --jail_user is missing or empty.", file=sys.stderr)
+        return None
+    try:
+        test_code = "result = 1 + 1"
+        compiled_code = compile_restricted(test_code, '<string>', 'exec')
+        test_globals = dict(safe_builtins)
+        exec(compiled_code, test_globals)
+        if test_globals.get('result') != 2:
+            print("ERROR: RestrictedPython test failed", file=sys.stderr)
+            return None
+    except ImportError:
+        print("ERROR: RestrictedPython not available. Install with: pip install RestrictedPython", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"ERROR: RestrictedPython test failed: {e}", file=sys.stderr)
+        return None
+    allowed_modules = {
+        'json': __import__('json'), 'base64': __import__('base64'), 'sys': sys,
+        'math': __import__('math'), 'datetime': __import__('datetime'), 're': __import__('re'), }
+    safe_globals = dict(safe_builtins) 
+    safe_globals['open'] = jailed_open
+    safe_globals.update({
+        # Core guards/hooks that RestrictedPython might inject:
+        '_getattr_': default_guarded_getattr,
+        '_getitem_': default_guarded_getitem,
+        '_getiter_': default_guarded_getiter,
+        '_unpack_sequence_': guarded_unpack_sequence,
+        '_iter_unpack_sequence_': guarded_iter_unpack_sequence,
+        '_apply_': guarded_apply,
+        # Core builtins/types to avoid NameError on annotations etc:
+        'list': list, 'dict': dict, 'str': str, 'int': int,
+        'float': float, 'bool': bool,'bytes': bytes,
+        # Allow imports for already-injected modules:
+        '__builtins__': {**safe_builtins, '__import__': __import__}
+    })
+    return {
+        "enabled": True, "type": "restricted_python", "path": args.jail_dir, "user": args.jail_user,
+        "allowed_modules": allowed_modules, "safe_globals": safe_globals,
+        "restrictions": {
+            "allow_imports": True,  # loosened so modules can lazy-load submodules
+            "allow_file_access": False,
+            "allow_network": False, } }
+
 def main():
-    
     start_time = time.perf_counter()
     #pdb.set_trace()
-    agent, config, cli_args, agent_name = config_app()
+    agent, config, cli_args, agent_name, args = config_app()
     setup_depth_manager(config)
     global log_text_limit
     log_text_limit= int(config['workflow_settings']['log_text_limit'])
     results = {}
+    jail_config = setup_jail_config(args)
 
     try:
         logging.info(f"Starting execution of workflow: {agent_name}")
-        result, status = exec_agent(agent, agent_name, config, cli_args, results)
+        result, status = exec_agent(agent, agent_name, config, cli_args, results, jail_config=jail_config)
         if isinstance(result, dict):
             for key, value in result.items():
                 if isinstance(value, bytes):
