@@ -143,6 +143,9 @@ class WorkflowEditorFrame(BaseEditorFrame):
         self.fail_check_var = ctk.IntVar(value=self.data.get("return_on_fail", 0))
         self.fail_check = ctk.CTkCheckBox(fail_frame, text="Return on Fail", variable=self.fail_check_var, font=main_font); self.fail_check.pack(side="left")
 
+        copy_button = ctk.CTkButton(tab, text="Copy Agent Definition to Clipboard", command=self.copy_agent_definition_to_clipboard)
+        copy_button.pack(fill="x", padx=10, pady=(15, 5))
+
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)

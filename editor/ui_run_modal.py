@@ -656,6 +656,8 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
         
         self.refresh_test_cases_display()
         self.load_scratchpad(run_config)
+
+        self.after(100, self.re_validate_all_inputs)
     
     def load_scratchpad(self, run_config=None):
         if run_config is None: run_config = self.agent_data.get("run_config", {})
@@ -682,32 +684,46 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
         self.refresh_assertions_display([])
 
     def re_validate_all_inputs(self):
-        """Forces re-validation on all visible input entry fields."""
+        """
+        Forces re-validation on all visible input entry fields and syncs preset selectors.
+        """
         param_hints = self.agent_data.get("gui", {}).get("param_hints", {})
-        
-        # We need to find the actual CTkEntry widget for each input key
-        # This requires iterating through the frames that hold them.
+            
+        # Find all parameter frames currently on screen
         all_param_frames = list(self.optional_frames.values())
-        # Find the main frame holding required inputs if it exists
         for child in self.inputs_scroll_frame.winfo_children():
             if isinstance(child, ctk.CTkFrame) and hasattr(child, 'winfo_children'):
-                is_param_frame = any(isinstance(w, ctk.CTkEntry) for w in child.winfo_children())
-                if is_param_frame:
+                if any(isinstance(w, ctk.CTkLabel) for w in child.winfo_children()):
                     all_param_frames.append(child)
-
+        
         for frame in all_param_frames:
             entry_widget = None
             label_widget = None
+            
+            # Find the label and the main entry widget for this parameter
             for widget in frame.winfo_children():
                 if isinstance(widget, ctk.CTkEntry):
                     entry_widget = widget
                 elif isinstance(widget, ctk.CTkLabel):
                     label_widget = widget
-            
+                # The preset selector has its *own* entry inside an inner frame
+                elif isinstance(widget, ctk.CTkFrame):
+                    # Find the entry widget inside the preset's frame
+                    preset_entry = next((w for w in widget.winfo_children() if isinstance(w, ctk.CTkEntry)), None)
+                    if preset_entry:
+                        entry_widget = preset_entry
+
             if entry_widget and label_widget:
                 key = label_widget.cget("text")
-                if key in param_hints and "validation" in param_hints[key]:
-                    self.validate_entry_with_feedback(key, entry_widget, param_hints[key])
+                hint = param_hints.get(key, {})
+
+                if key in self.input_entries:
+                    current_value = self.input_entries[key].get()
+                    self.input_entries[key].set(current_value) # This triggers the trace
+
+                # Also run the explicit validation, which was the original purpose
+                if "validation" in hint:
+                    self.validate_entry_with_feedback(key, entry_widget, hint)
 
     def load_test_case(self, index):
         if 0 <= index < len(self.test_cases):

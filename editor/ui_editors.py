@@ -146,6 +146,40 @@ class BaseEditorFrame(ctk.CTkFrame):
 
     def get_data(self): raise NotImplementedError
 
+    def copy_agent_definition_to_clipboard(self):
+        """Gathers the current agent data, formats it as JSON, and copies it."""
+        if not hasattr(self, 'get_data'):
+            print("Error: The 'get_data' method is not implemented in this editor.")
+            return
+            
+        # 1. Get the most up-to-date data from the form fields
+        current_data = self.get_data()
+        if current_data is None:
+            # This can happen if there's a validation error (e.g., in the JSON editor)
+            from tkinter import messagebox
+            messagebox.showerror("Cannot Copy", "Could not retrieve agent data. Please check the editor for errors (e.g., invalid JSON).")
+            return
+        
+        # 2. Get the current name and format the final JSON object
+        agent_name = current_data.pop('name', self.agent_name)
+        
+        # The final structure to be copied is {"agent_name": { ...agent_data... }}
+        json_to_copy = {agent_name: current_data}
+        
+        # 3. Format as a pretty string and copy to clipboard
+        try:
+            json_string = json.dumps(json_to_copy, indent=2)
+            
+            self.clipboard_clear()
+            self.clipboard_append(json_string)
+            
+            # Use the app_ref to show a toast message for feedback
+            self.app_ref.show_toast(f"Definition for '{agent_name}' copied to clipboard.")
+            
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Copy Failed", f"An unexpected error occurred while preparing the JSON data: {e}")
+
     def _create_help_button(self, parent, help_text):
         def show_help(): self.app_ref.show_help_modal("Help", help_text)
         return ctk.CTkButton(parent, text="?", width=25, height=25, command=show_help)
@@ -607,6 +641,9 @@ class ProcEditorFrame(BaseEditorFrame):
         self.web_services_entry.insert(0, ", ".join(self.data.get("web_services", [])))
         self.web_services_entry.pack(fill="x", padx=10, pady=5)
 
+        copy_button = ctk.CTkButton(tab, text="Copy Agent Definition to Clipboard", command=self.copy_agent_definition_to_clipboard)
+        copy_button.pack(fill="x", padx=10, pady=(15, 5))
+
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
@@ -729,6 +766,9 @@ class TemplateEditorFrame(BaseEditorFrame):
         self.web_services_entry = ctk.CTkEntry(tab, font=main_font)
         self.web_services_entry.insert(0, ", ".join(self.data.get("web_services", [])))
         self.web_services_entry.pack(fill="x", padx=10, pady=5)
+
+        copy_button = ctk.CTkButton(tab, text="Copy Agent Definition to Clipboard", command=self.copy_agent_definition_to_clipboard)
+        copy_button.pack(fill="x", padx=10, pady=(15, 5))
 
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])

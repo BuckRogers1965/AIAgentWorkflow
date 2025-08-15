@@ -84,7 +84,117 @@ class App(ctk.CTk):
         
         self.configure(fg_color=self.theme['colors']['bg_primary'])
 
+        self.bind_all("<Control-v>", self.handle_paste_event)
+        self.bind_all("<Command-v>", self.handle_paste_event) # For macOS
+
         self.create_ui_elements()
+
+        self.focus_set()
+
+    def handle_paste_event(self, event=None):
+        """Handles paste events to create a new agent from clipboard JSON,
+           accepting either format and providing feedback on failure."""
+        if self.current_agent_name is not None:
+            return
+
+        try:
+            clipboard_content = self.clipboard_get()
+            if not clipboard_content.strip():
+                # Don't show a toast for an empty paste
+                return
+
+            import json_repair
+            data = json.loads(json_repair.repair_json(clipboard_content))
+
+            agent_definition_to_process = None
+
+            if isinstance(data, dict) and "type" in data:
+                agent_definition_to_process = data
+            elif isinstance(data, dict) and len(data) == 1:
+                first_value = next(iter(data.values()))
+                if isinstance(first_value, dict) and "type" in first_value:
+                    agent_definition_to_process = first_value
+
+            if agent_definition_to_process:
+                self.process_pasted_agent(agent_definition_to_process)
+                return "break"
+            else:
+                # --- NEW: Feedback for valid JSON that isn't an agent ---
+                self.show_toast("Paste failed: JSON does not appear to be a valid agent definition.", is_error=True)
+                return "break" # Prevent default paste
+
+        except (json.JSONDecodeError, TypeError):
+            # --- NEW: Feedback for invalid JSON ---
+            self.show_toast("Paste failed: Clipboard does not contain valid JSON.", is_error=True)
+            return "break" # Prevent default paste
+        except self.tk.TclError:
+            # --- NEW: Feedback for non-text clipboard content ---
+            self.show_toast("Paste failed: Clipboard does not contain text.", is_error=True)
+            return "break" # Prevent default paste
+
+    def process_pasted_agent(self, agent_data):
+        """Takes a valid agent dictionary and adds it to the system."""
+        # 1. Determine the base name from the pasted JSON.
+        # It's not standard for the agent name to be *inside* its own definition,
+        # so we check the clipboard content for the key.
+        
+        base_name = "pasted_agent" # Default if no name is found
+        try:
+            clipboard_text = self.clipboard_get()
+            # A simple regex to find the key for the pasted object, e.g., "my_agent": { ... }
+            import re
+            match = re.search(r'"([^"]+)"\s*:\s*\{', clipboard_text.strip())
+            if match:
+                base_name = match.group(1)
+        except Exception:
+            pass # Fallback to default name if clipboard fails or regex doesn't match
+        
+        # 2. Check if the name already exists. If so, create a unique version.
+        if self.config_manager.get_agent_data(base_name):
+            new_name = self.config_manager.generate_unique_name(base_name)
+        else:
+            new_name = base_name
+
+        # 3. Add the agent to the config manager with the new name
+        self.config_manager.update_agent(new_name, agent_data)
+        self.config_manager.save()
+        
+        # 4. Update the UI
+        self.refresh_agent_list()
+        self.select_agent(new_name)
+        
+        self.show_toast(f"New agent created from clipboard: '{new_name}'")
+
+    def process_pasted_agent_ol(self, agent_data):
+        """Takes a valid agent dictionary and adds it to the system."""
+        # 4. Create and Load
+        # Propose a name, but ensure it's unique.
+        proposed_name = agent_data.pop('name', 'pasted_agent') # Use 'name' key if present
+        new_name = self.config_manager.generate_unique_name(proposed_name)
+        
+        # Add the agent to the config manager
+        self.config_manager.update_agent(new_name, agent_data)
+        self.config_manager.save()
+        
+        # Update the UI
+        self.refresh_agent_list()
+        self.select_agent(new_name)
+        
+        self.show_toast(f"New agent created from clipboard: '{new_name}'")
+
+    def _search_entry_paste(self, event):
+        """Allows paste to work in the search entry and prevents default paste creation."""
+        # Use a CustomTkinter internal method to handle the paste for the entry
+        try:
+            self.search_entry.event_generate("<<Paste>>")
+        except:
+            pass # Handle potential errors if event generation fails
+        return "break" # Prevent event from propagating to the main App.handle_paste_event
+
+
+    def deselect_search_box(self, event=None):
+        """Explicitly removes focus from the search entry and gives it to the main window."""
+        self.focus_set()
 
     def create_ui_elements(self):
         for widget in self.winfo_children():
@@ -94,6 +204,10 @@ class App(ctk.CTk):
         self.create_editor_panel()
         self.create_modal_overlay()
         self.refresh_agent_list()
+
+        self.search_entry.bind("<Control-v>", self._search_entry_paste)
+        self.search_entry.bind("<Command-v>", self._search_entry_paste)
+        self.agent_list_frame.bind("<Button-1>", self.deselect_search_box)
         
         if self.current_agent_name:
             self.build_editor_form()
@@ -154,6 +268,8 @@ class App(ctk.CTk):
         self.editor_container = ctk.CTkFrame(self, fg_color="transparent")
         self.editor_container.grid(row=0, column=1, padx=10, pady=(10,0), sticky="nsew")
         self.editor_container.grid_rowconfigure(0, weight=1); self.editor_container.grid_columnconfigure(0, weight=1)
+
+        self.editor_container.bind("<Button-1>", self.deselect_search_box)
         
         self.action_bar = ctk.CTkFrame(self, fg_color="transparent")
         self.action_bar.grid(row=1, column=1, padx=10, pady=(5, 10), sticky="ew")
@@ -284,14 +400,25 @@ class App(ctk.CTk):
         agent_type = choice.lower(); new_name = self.config_manager.create_new_agent(agent_type)
         self.config_manager.save(); self.refresh_agent_list(); self.select_agent(new_name)
     def select_agent(self, agent_name): self.current_agent_name = agent_name; self.build_editor_form()
-    
+
     def show_welcome_message(self):
         if self.editor_frame_instance: self.editor_frame_instance.destroy()
         self.current_agent_name = None; self.editor_frame_instance = None
-        label = ctk.CTkLabel(self.editor_container, text="Select an agent to edit or create a new one.", 
+        
+        welcome_text = (
+            "Select an agent to edit or create a new one.\n\n"
+            "or\n\n"
+            "Paste an agent definition into this window.\n"
+            "(Click here to focus)"
+        )
+        
+        label = ctk.CTkLabel(self.editor_container, text=welcome_text, 
                              font=(self.theme['fonts']['main_family'], self.theme['fonts']['title_size']), 
                              text_color=self.theme['colors']['text_secondary'])
         label.place(relx=0.5, rely=0.5, anchor="center")
+
+        label.bind("<Button-1>", self.deselect_search_box)
+        
         self.action_bar.grid_remove()
         self.refresh_agent_list()
 
@@ -344,11 +471,18 @@ class App(ctk.CTk):
         if modal.saved:
             self.editor_frame_instance.data["steps"][index] = modal.get_result()
             self.editor_frame_instance.refresh_steps_list()
+
+    def show_toast(self, message, is_error=False):
+        if is_error:
+            fg_color = self.theme['colors']['error']
+            text_color = "white"
+        else:
+            fg_color = self.theme['colors'].get('success', ("#333", "#555"))
+            text_color = "white"
             
-    def show_toast(self, message):
-        toast = ctk.CTkLabel(self, text=message, fg_color=("#333", "#555"), text_color="white", corner_radius=10, font=("", 14))
-        toast.place(relx=0.5, rely=0.95, anchor="center"); toast.lift(); self.after(2500, toast.destroy)
-        
+        toast = ctk.CTkLabel(self, text=message, fg_color=fg_color, text_color=text_color, corner_radius=10, font=("", 14))
+        toast.place(relx=0.5, rely=0.95, anchor="center"); toast.lift(); self.after(3500, toast.destroy)
+            
     def show_help_modal(self, title, content):
         help_window = ctk.CTkToplevel(self)
         help_window.title(title); help_window.geometry("600x600")
