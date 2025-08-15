@@ -83,6 +83,8 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         self.populate_variable_selector()
         self.refresh_params_form()
 
+# In ui_step_editor.py -> inside class StepEditorModal
+
     def refresh_params_form(self):
         for widget in self.params_frame.winfo_children(): 
             widget.destroy()
@@ -95,6 +97,9 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         )
         
         required_inputs = set(self.agent_def.get("inputs", []))
+        optional_inputs = set(self.agent_def.get("optional_inputs", []))
+        all_defined_inputs = required_inputs | optional_inputs
+        
         self.editing_data.setdefault('params', {})
         self.editing_data.setdefault('output', [])
 
@@ -107,7 +112,7 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             else:
                 self.create_standard_param_widget(parent, key, value, hint)
 
-        # Outputs section
+        # --- 1. Outputs section (Original Logic) ---
         ctk.CTkLabel(self.params_frame, text="Outputs", font=label_font).pack(anchor="w", padx=5)
         for i, item in enumerate(self.editing_data['output']):
             param_font = self._get_param_font()
@@ -118,7 +123,7 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             entry.bind("<FocusIn>", lambda event, entry=entry: self.set_active_entry(entry))
             self.param_entries[f'output_{i}'] = entry
 
-        # Required parameters section
+        # --- 2. Required parameters section (Original Logic) ---
         if required_inputs:
             ctk.CTkLabel(self.params_frame, text="Required Parameters", 
                         font=label_font).pack(anchor="w", padx=5, pady=(15, 0))
@@ -128,10 +133,39 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             param_frame = ctk.CTkFrame(self.params_frame, fg_color="transparent")
             param_frame.pack(fill="x", pady=2, padx=5)
             create_param_widget(param_frame, key, self.editing_data["params"].get(key, ""))
+        
+        # --- 3. Optional, Custom, and Orphaned Parameters ---
+        
+        # *** THE ONLY NEW SECTION ***
+        # First, identify and render orphaned keys separately.
+        all_step_param_keys = set(self.editing_data["params"].keys())
+        orphaned_keys = all_step_param_keys - all_defined_inputs
+        if orphaned_keys:
+            param_font = self._get_param_font()
+            ctk.CTkLabel(self.params_frame, text="Orphaned Parameters (No longer valid for this agent)", 
+                         font=label_font, text_color=self.get_theme_color('error', 'red')).pack(anchor="w", padx=5, pady=(15, 0))
+        
+            for key in sorted(list(orphaned_keys)):
+                value = self.editing_data["params"].get(key, "")
+                param_frame = ctk.CTkFrame(self.params_frame, fg_color="transparent")
+                param_frame.pack(fill="x", pady=2, padx=5)
+                
+                label = ctk.CTkLabel(param_frame, text=key, width=200, font=param_font, text_color="gray")
+                label.pack(side="left")
+                
+                entry = ctk.CTkEntry(param_frame, font=param_font, border_color="red", border_width=2)
+                entry.insert(0, value)
+                entry.configure(state="disabled")
+                entry.pack(side="left", expand=True, fill="x")
 
-        # Optional and custom parameters section
-        optional_inputs = set(self.agent_def.get("optional_inputs", []))
-        optional_and_custom_keys = set(self.editing_data["params"].keys()) - required_inputs
+                remove_btn = ctk.CTkButton(param_frame, text="X", width=30, 
+                                         fg_color=self.get_theme_color('error', 'red'), 
+                                         command=lambda k=key: self.remove_param(k))
+                remove_btn.pack(side="left", padx=5)
+        # *** END OF NEW SECTION ***
+
+        # --- 4. Optional and Custom Parameters (Original Logic) ---
+        optional_and_custom_keys = set(self.editing_data["params"].keys()) - required_inputs - orphaned_keys
         if optional_and_custom_keys:
             ctk.CTkLabel(self.params_frame, text="Optional / Custom Parameters", 
                         font=label_font).pack(anchor="w", padx=5, pady=(15, 0))
@@ -161,7 +195,7 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
                                      command=lambda k=key: self.remove_param(k))
             remove_btn.pack(side="left", padx=5)
         
-        # Add optional parameter dropdown
+        # --- 5. Add Optional Parameter Dropdown (Original Logic) ---
         available_options = sorted(list(optional_inputs - set(self.editing_data["params"].keys())))
         if available_options:
             option_menu = ctk.CTkOptionMenu(self.params_frame, 
