@@ -161,6 +161,19 @@
       "url": "^https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+",
       "hex_color_code": "^#?([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$",
       "username_alphanumeric_underscore": "^[a-zA-Z0-9_]{3,20}$"
+    },
+    "time_stamp_formats": {
+      "File Safe (Default)": "%Y-%m-%d_%H-%M-%S",
+      "ISO 8601 UTC": "%Y-%m-%dT%H:%M:%SZ",
+      "ISO 8601 with Offset": "%Y-%m-%dT%H:%M:%S%z",
+      "Human Readable (US)": "%A, %B %d, %Y at %I:%M %p",
+      "Human Readable (EU)": "%A, %d %B %Y at %H:%M",
+      "Date Only (YYYY-MM-DD)": "%Y-%m-%d",
+      "Date Only (MM/DD/YYYY)": "%m/%d/%Y",
+      "Time Only (24-Hour)": "%H:%M:%S",
+      "Time Only (12-Hour)": "%I:%M:%S %p",
+      "RFC 2822 (Email)": "%a, %d %b %Y %H:%M:%S %z",
+      "Unix Timestamp (Seconds)": "%s"
     }
   },
   "agents": {
@@ -313,6 +326,42 @@
       }
     },
     "append_text": {
+      "web_services": [
+        "public_api",
+        "test_add"
+      ],
+      "type": "template",
+      "inputs": [
+        "whole_text",
+        "part_text"
+      ],
+      "outputs": [
+        "whole_text"
+      ],
+      "prompt": "{whole_text}{part_text}",
+      "help": "accumulate the text, like building a chapter by parts.",
+      "run_config": {
+        "last_inputs": {
+          "whole_text": "111111111",
+          "part_text": "2222"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "whole_text",
+            "assertion_type": "Equals",
+            "expected_value": "1111111112222"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
+    },
+    "append_text_1": {
       "web_services": [
         "public_api",
         "test_add"
@@ -675,6 +724,23 @@
         "thesis": ""
       },
       "help": "Strengthens the conclusion of an essay to reinforce the thesis."
+    },
+    "conditional_branch": {
+      "type": "proc",
+      "help": "Compares two values and returns a specific step index to jump to based on whether the condition is true or false. Enables if/else branching in workflows.",
+      "inputs": [
+        "value1",
+        "operator",
+        "value2",
+        "step_index_if_true",
+        "step_index_if_false"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "step_index"
+      ],
+      "function": "conditional_branch",
+      "function_def": "import operator as op\n\ndef conditional_branch(value1: any, operator: str, value2: any, step_index_if_true: int, step_index_if_false: int, output: list) -> tuple:\n    ops = {\n        '==': op.eq, '!=': op.ne, '<': op.lt, '<=': op.le,\n        '>': op.gt, '>=': op.ge, 'in': op.contains,\n        'not in': lambda a, b: not op.contains(a, b)\n    }\n    if operator not in ops:\n        return {}, {'status': {'value': 1, 'reason': f'Invalid operator: {operator}'}}\n    \n    # Attempt type conversion for numeric comparisons\n    try:\n        if operator in ['<', '<=', '>', '>=']:\n            v1, v2 = float(value1), float(value2)\n        else:\n            v1, v2 = str(value1), str(value2)\n    except (ValueError, TypeError):\n        v1, v2 = str(value1), str(value2) # Fallback to string comparison\n\n    result = False\n    try:\n        result = ops[operator](v1, v2)\n    except TypeError:\n        # Handle 'in' operator where first arg might not be a sequence\n        if operator == 'in': result = ops[operator](str(v2), str(v1))\n\n    next_step = int(step_index_if_true) if result else int(step_index_if_false)\n    \n    return {output[0]: next_step}, {'status': {'value': 0, 'reason': f'Condition evaluated to {result}. Branching to step {next_step}.'}}"
     },
     "convert_json_to_results": {
       "type": "proc",
@@ -2166,6 +2232,20 @@
       "optional_inputs": [],
       "prompt": "As a stable diffusion master prompt writer, I create a long highly detailed and nuanced prompt to elicit the perfect artwork from stable diffusion models. I follow the following creative points, A specific and detailed description of what you want to create, include interesting or unusual elements, provide context about the scene, characters, and setting, include emotions and atmosphere in the prompt, include contrasting elements in the prompt, including a story or narrative in the prompt, provide technical details about the image, such as size, color palette, and style, give the model creative freedom by leaving out some details or allowing it to make choices, using consistent language throughout the prompt. The prompt should be highly detailed and nuanced, with specific requests for detailed setting descriptions, detailed character descriptions, detailed background, and other aspects of the image should almost tell a story. Create a photograph featuring {topic}. "
     },
+    "json_path_extractor": {
+      "type": "proc",
+      "help": "Extracts a value from a JSON object or string using a dot-notation path (e.g., 'data.user.name').",
+      "inputs": [
+        "json_data",
+        "path_query"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "extracted_value"
+      ],
+      "function": "json_path_extractor",
+      "function_def": "import json\nfrom functools import reduce\nimport operator\n\ndef json_path_extractor(json_data: (str | dict), path_query: str, output: list) -> tuple:\n    try:\n        if isinstance(json_data, str):\n            data = json.loads(json_data)\n        else:\n            data = json_data\n        \n        keys = path_query.split('.')\n        value = reduce(operator.getitem, keys, data)\n        \n        return value, {'status': {'value': 0, 'reason': 'Successfully extracted value.'}}\n    except (json.JSONDecodeError, KeyError, TypeError, IndexError) as e:\n        return None, {'status': {'value': 1, 'reason': f'Failed to extract path \"{path_query}\": {e}'}}"
+    },
     "language_adder": {
       "type": "template",
       "inputs": [
@@ -2595,6 +2675,43 @@
         }
       ]
     },
+    "loop_test_1": {
+      "type": "workflow",
+      "help": "Test for looping.",
+      "inputs": [
+        "loop_max"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "loop_idx_1"
+      ],
+      "steps": [
+        {
+          "agent": "loop_start",
+          "params": {
+            "step_index": "$step_index",
+            "loop_max": "$loop_max"
+          },
+          "output": [
+            "loop_start_1",
+            "loop_max_1",
+            "loop_idx_1"
+          ]
+        },
+        {
+          "agent": "loop_end",
+          "params": {
+            "step_index": "$loop_start_1",
+            "loop_max": "$loop_max_1",
+            "loop_index": "$loop_idx_1"
+          },
+          "output": [
+            "loop_idx_1"
+          ]
+        }
+      ],
+      "return_on_fail": 0
+    },
     "outline_agent": {
       "type": "template",
       "inputs": [
@@ -2610,6 +2727,50 @@
         "thesis": ""
       },
       "help": "Generates a detailed essay outline based on a given topic and thesis."
+    },
+    "pasted_agent_1": {
+      "type": "template",
+      "help": "A simple test agent for demonstrating and verifying template functionality. It combines a required name with an optional title.",
+      "inputs": [
+        "user_name"
+      ],
+      "optional_inputs": [
+        "user_title"
+      ],
+      "outputs": [
+        "greeting_message"
+      ],
+      "prompt": "Hello, {user_title} {user_name}! Welcome to the system.",
+      "run_config": {
+        "last_inputs": {
+          "user_name": "Smith",
+          "user_title": "Dr."
+        },
+        "last_log_level": "INFO",
+        "test_cases": [
+          {
+            "name": "Test with all inputs",
+            "notes": "Verifies that both the required and optional inputs are correctly substituted into the prompt.",
+            "date_added": "2025-08-15T10:00:00.000000",
+            "inputs": {
+              "user_name": "Smith",
+              "user_title": "Dr."
+            },
+            "assertions": [
+              {
+                "output_variable": "greeting_message",
+                "assertion_type": "Equals",
+                "expected_value": "Hello, Dr. Smith! Welcome to the system."
+              },
+              {
+                "output_variable": "status.value",
+                "assertion_type": "Equals",
+                "expected_value": "0"
+              }
+            ]
+          }
+        ]
+      }
     },
     "promoted_workflow_8245": {
       "type": "workflow",
@@ -2707,6 +2868,64 @@
       ],
       "optional_inputs": [],
       "prompt": "You are a research expert.  Provide {depth} research on the topic: {topic} to support a thesis: {thesis}. Incorporate specific examples, studies, and data to support the arguments. Mention current efforts, frameworks, or regulations related to AI governance. Reduce repetition of phrases to improve readability. Provide a more detailed discussion on proposed solutions or strategies to address the identified concerns. provide detailed and thorough research on a specific topic, incorporating examples, studies, and data to support arguments. Focus on facts and figures and cite sources appropriately. Organize research into sections that reflect how they will be used in drafting an article.  Inputs: - topic: The specific area of study or focus for the research. - {depth}: The level of detail required, from superficial to in-depth analysis. - tone: The desired tone or style of the research, such as academic, technical, or persuasive. Integration: The research expert agent should be designed to seamlessly integrate with other agents in the workflow, such as a drafting agent or a design agent. This includes providing replaceable keywords for dynamic updates based on user inputs and following formatting guidelines that enable smooth data exchange."
+    },
+    "s3_get_object": {
+      "type": "proc",
+      "help": "Downloads an object from an S3 bucket and returns its content as raw bytes.",
+      "inputs": [
+        "endpoint_url",
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "bucket_name",
+        "object_key"
+      ],
+      "optional_inputs": [
+        "region_name"
+      ],
+      "outputs": [
+        "file_content"
+      ],
+      "function": "s3_get_object",
+      "function_def": "import boto3\nimport io\n\ndef s3_get_object(endpoint_url: str, aws_access_key_id: str, aws_secret_access_key: str, bucket_name: str, object_key: str, output: list, region_name: str = None) -> tuple:\n    try:\n        s3_client = boto3.client(\n            's3',\n            endpoint_url=endpoint_url,\n            aws_access_key_id=aws_access_key_id,\n            aws_secret_access_key=aws_secret_access_key,\n            region_name=region_name\n        )\n        buffer = io.BytesIO()\n        s3_client.download_fileobj(bucket_name, object_key, buffer)\n        content = buffer.getvalue()\n        return content, {'status': {'value': 0, 'reason': 'Success'}}\n    except Exception as e:\n        return b'', {'status': {'value': 1, 'reason': f'S3 GET failed: {e}'}}"
+    },
+    "s3_list_objects": {
+      "type": "proc",
+      "help": "Lists object keys in an S3 bucket, optionally filtered by a prefix.",
+      "inputs": [
+        "endpoint_url",
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "bucket_name"
+      ],
+      "optional_inputs": [
+        "prefix",
+        "region_name"
+      ],
+      "outputs": [
+        "object_list"
+      ],
+      "function": "s3_list_objects",
+      "function_def": "import boto3\n\ndef s3_list_objects(endpoint_url: str, aws_access_key_id: str, aws_secret_access_key: str, bucket_name: str, output: list, prefix: str = '', region_name: str = None) -> tuple:\n    try:\n        s3_client = boto3.client(\n            's3',\n            endpoint_url=endpoint_url,\n            aws_access_key_id=aws_access_key_id,\n            aws_secret_access_key=aws_secret_access_key,\n            region_name=region_name\n        )\n        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)\n        keys = [item['Key'] for item in response.get('Contents', [])]\n        return keys, {'status': {'value': 0, 'reason': 'Success'}}\n    except Exception as e:\n        return [], {'status': {'value': 1, 'reason': f'S3 LIST failed: {e}'}}"
+    },
+    "s3_put_object": {
+      "type": "proc",
+      "help": "Uploads raw bytes to a specified key in an S3 bucket.",
+      "inputs": [
+        "endpoint_url",
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "bucket_name",
+        "object_key",
+        "file_bytes"
+      ],
+      "optional_inputs": [
+        "region_name"
+      ],
+      "outputs": [
+        "upload_details"
+      ],
+      "function": "s3_put_object",
+      "function_def": "import boto3\n\ndef s3_put_object(endpoint_url: str, aws_access_key_id: str, aws_secret_access_key: str, bucket_name: str, object_key: str, file_bytes: bytes, output: list, region_name: str = None) -> tuple:\n    try:\n        s3_client = boto3.client(\n            's3',\n            endpoint_url=endpoint_url,\n            aws_access_key_id=aws_access_key_id,\n            aws_secret_access_key=aws_secret_access_key,\n            region_name=region_name\n        )\n        response = s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=file_bytes)\n        details = {\n            'ETag': response.get('ETag'),\n            'VersionId': response.get('VersionId')\n        }\n        return details, {'status': {'value': 0, 'reason': 'Success'}}\n    except Exception as e:\n        return {}, {'status': {'value': 1, 'reason': f'S3 PUT failed: {e}'}}"
     },
     "scatter_on_separator": {
       "type": "proc",
@@ -2855,6 +3074,50 @@
       ],
       "function": "smart_http_get",
       "function_def": "import requests\nimport time\nimport json\nimport re\nimport logging\nfrom typing import Dict, Union, Optional\nfrom urllib.parse import urlparse\n\ndef _is_hostname_private(hostname: str) -> bool:\n    \"\"\"Checks if a given hostname resolves to a private or reserved IP.\"\"\"\n    if not hostname: return True # Treat empty hostname as unsafe\n    private_ip_pattern = re.compile(\n        r\"^((127\\.)|(10\\.)|(172\\.(1[6-9]|2[0-9]|3[0-1])\\.)|(192\\.168\\.)|(0\\.)|(169\\.254\\.))\" \n        r\"|^(localhost)$\"\n    )\n    return bool(private_ip_pattern.match(hostname))\n\ndef smart_http_get(url: str, output:list, headers: Dict[str, str] = None, timeout_seconds: Optional[int] = None) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n    \"\"\"Performs an HTTP GET request, automatically toggling security based on protocol.\"\"\"\n\n    is_secure_protocol = url.lower().startswith('https://')\n\n    if is_secure_protocol:\n        # --- SECURE MODE for https:// ---\n        effective_timeout = int(timeout_seconds) if timeout_seconds is not None else 30\n        try:\n            parsed_url = urlparse(url)\n            if _is_hostname_private(parsed_url.hostname):\n                return b\"\", {\"status\": {\"value\": 1, \"reason\": \"Security Error: HTTPS URL targets a forbidden internal or private IP address.\"}}\n        except Exception as e:\n            return b\"\", {\"status\": {\"value\": 1, \"reason\": f\"URL parsing error: {e}\"}}\n    else:\n        # --- INSECURE MODE for http:// ---\n        effective_timeout = int(timeout_seconds) if timeout_seconds is not None else 600\n\n    # Shared request and retry logic\n    max_retries: int = 3\n    retry_delays = [5, 10, 15]\n    headers_dict = json.loads(headers) if isinstance(headers, str) and headers else headers or {}\n\n    for attempt in range(max_retries):\n        try:\n            response = requests.get(url, headers=headers_dict, timeout=effective_timeout)\n            if response.status_code == 200:\n                return response.content, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n            if attempt < max_retries - 1:\n                time.sleep(retry_delays[attempt])\n                continue\n            return b\"\", {\"status\": {\"value\": 1, \"reason\": f\"{response.status_code} HTTP Error after {max_retries} attempts.\"}}\n        except requests.exceptions.RequestException as e:\n            logging.error(f\"Request for {url} failed: {e}\")\n            if attempt < max_retries - 1:\n                time.sleep(retry_delays[attempt])\n                continue\n            return b\"\", {\"status\": {\"value\": 1, \"reason\": f\"Request failed: {e}\"}}\n\n    return b\"\", {\"status\": {\"value\": 1, \"reason\": \"Request failed after max retries.\"}}\n"
+    },
+    "smb_fetch": {
+      "type": "proc",
+      "help": "Fetches a file or lists a directory from an SMB (Windows/Samba) share. Infers action based on path: ending with '/' lists a directory.",
+      "inputs": [
+        "hostname",
+        "share_name",
+        "remote_path",
+        "username",
+        "password"
+      ],
+      "optional_inputs": [
+        "domain",
+        "port",
+        "timeout"
+      ],
+      "outputs": [
+        "content",
+        "metadata"
+      ],
+      "function": "smb_fetch",
+      "function_def": "from smb.SMBConnection import SMBConnection\nfrom smb.smb_structs import SMB_FILE_ATTRIBUTE_DIRECTORY\nimport io\n\ndef smb_fetch(hostname: str, share_name: str, remote_path: str, username: str, password: str, output: list, domain: str = 'WORKGROUP', port: int = 445, timeout: int = 30) -> tuple:\n    conn = None\n    try:\n        conn = SMBConnection(username, password, 'my_client_name', 'server_name', domain=domain, use_ntlm_v2=True)\n        is_connected = conn.connect(hostname, port, timeout=timeout)\n        if not is_connected:\n            return {}, {'status': {'value': 1, 'reason': 'Failed to connect to SMB host.'}}\n\n        if remote_path.endswith('/'):\n            # List directory\n            file_list = conn.listPath(share_name, remote_path)\n            filenames = [f.filename for f in file_list if f.filename not in ['.', '..']]\n            content = '\\n'.join(filenames)\n            metadata = {'type': 'directory', 'item_count': len(filenames)}\n        else:\n            # Fetch file\n            file_obj = io.BytesIO()\n            file_attributes, file_size = conn.retrieveFile(share_name, remote_path, file_obj)\n            content = file_obj.getvalue()\n            metadata = {'type': 'file', 'size_bytes': file_size, 'is_directory': file_attributes.isDirectory}\n\n        return {output[0]: content, output[1]: metadata}, {'status': {'value': 0, 'reason': 'Success'}}\n\n    except Exception as e:\n        return {}, {'status': {'value': 1, 'reason': f'SMB operation failed: {e}'}}\n    finally:\n        if conn:\n            conn.close()"
+    },
+    "smb_put": {
+      "type": "proc",
+      "help": "Uploads raw bytes to a specified file path on an SMB (Windows/Samba) share.",
+      "inputs": [
+        "hostname",
+        "share_name",
+        "remote_path",
+        "username",
+        "password",
+        "file_bytes"
+      ],
+      "optional_inputs": [
+        "domain",
+        "port",
+        "timeout"
+      ],
+      "outputs": [
+        "bytes_written"
+      ],
+      "function": "smb_put",
+      "function_def": "from smb.SMBConnection import SMBConnection\nimport io\n\ndef smb_put(hostname: str, share_name: str, remote_path: str, username: str, password: str, file_bytes: bytes, output: list, domain: str = 'WORKGROUP', port: int = 445, timeout: int = 30) -> tuple:\n    conn = None\n    try:\n        conn = SMBConnection(username, password, 'my_client_name', 'server_name', domain=domain, use_ntlm_v2=True)\n        is_connected = conn.connect(hostname, port, timeout=timeout)\n        if not is_connected:\n            return {}, {'status': {'value': 1, 'reason': 'Failed to connect to SMB host.'}}\n\n        file_obj = io.BytesIO(file_bytes)\n        bytes_written = conn.storeFile(share_name, remote_path, file_obj)\n        \n        return bytes_written, {'status': {'value': 0, 'reason': 'Success'}}\n\n    except Exception as e:\n        return {}, {'status': {'value': 1, 'reason': f'SMB PUT operation failed: {e}'}}\n    finally:\n        if conn:\n            conn.close()"
     },
     "sqlite": {
       "type": "proc",
@@ -4013,6 +4276,50 @@
       },
       "optional_inputs": []
     },
+    "test_template_basic": {
+      "type": "template",
+      "help": "A simple test agent for demonstrating and verifying template functionality. It combines a required name with an optional title.",
+      "inputs": [
+        "user_name"
+      ],
+      "optional_inputs": [
+        "user_title"
+      ],
+      "outputs": [
+        "greeting_message"
+      ],
+      "prompt": "Hello, {user_title} {user_name}! Welcome to the system.",
+      "run_config": {
+        "last_inputs": {
+          "user_name": "Smith",
+          "user_title": "Dr."
+        },
+        "last_log_level": "INFO",
+        "test_cases": [
+          {
+            "name": "Test with all inputs",
+            "notes": "Verifies that both the required and optional inputs are correctly substituted into the prompt.",
+            "date_added": "2025-08-15T10:00:00.000000",
+            "inputs": {
+              "user_name": "Smith",
+              "user_title": "Dr."
+            },
+            "assertions": [
+              {
+                "output_variable": "greeting_message",
+                "assertion_type": "Equals",
+                "expected_value": "Hello, Dr. Smith! Welcome to the system."
+              },
+              {
+                "output_variable": "status.value",
+                "assertion_type": "Equals",
+                "expected_value": "0"
+              }
+            ]
+          }
+        ]
+      }
+    },
     "thesis_alignment": {
       "type": "template",
       "inputs": [
@@ -4024,6 +4331,46 @@
       ],
       "prompt": "Review the following essay and ensure all paragraphs support and align with the thesis '{thesis}'. Suggest modifications where necessary: {input_text}",
       "help": "Aligns docuemnt to a specific thesis."
+    },
+    "timestamp_generator": {
+      "type": "proc",
+      "help": "Generates a timestamp string based on the current time and a specified format code. Uses standard Python strftime format codes.\nThe format string that defines the timestamp format using Python's strftime codes. \nFor a full reference, visit strftime.org.",
+      "inputs": [],
+      "optional_inputs": [
+        "format_string"
+      ],
+      "outputs": [
+        "timestamp"
+      ],
+      "function": "timestamp_generator",
+      "function_def": "import time\n\ndef timestamp_generator(output: list, format_string: str = '%Y-%m-%d_%H-%M-%S') -> tuple:\n    \"\"\"\n    Generates a formatted timestamp string.\n    The format_string uses Python's strftime conventions.\n    Reference: https://strftime.org/\n    \"\"\"\n    try:\n        current_time = time.localtime()\n        timestamp_str = time.strftime(format_string, current_time)\n        return timestamp_str, {'status': {'value': 0, 'reason': 'Success'}}\n    except Exception as e:\n        return '', {'status': {'value': 1, 'reason': f'Failed to generate timestamp: {e}'}}",
+      "run_config": {
+        "last_inputs": {
+          "format_string": "%m/%d/%Y"
+        },
+        "last_log_level": "INFO",
+        "test_cases": [
+          {
+            "name": "test",
+            "notes": "",
+            "date_added": "2025-08-15T00:50:26.676738",
+            "inputs": {
+              "format_string": "%A, %d %B %Y at %H:%M"
+            },
+            "assertions": []
+          }
+        ]
+      },
+      "gui": {
+        "param_hints": {
+          "format_string": {
+            "tooltip": "Common codes:  %Y: Year (2023)  %m: Month (01-12)  %d: Day (01-31)  %H: Hour 24h (00-23)  %M: Minute (00-59)  %S: Second (00-59) %A: Full weekday (Sunday)  %B: Full month (January)  Default is '%Y-%m-%d_%H-%M-%S'",
+            "example": "%Y-%m-%dT%H:%M:%SZ",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.time_stamp_formats"
+          }
+        }
+      }
     },
     "transition_agent": {
       "type": "template",
@@ -4052,6 +4399,19 @@
         "last_log_level": "INFO",
         "test_cases": []
       }
+    },
+    "uuid_generator": {
+      "type": "proc",
+      "help": "Generates a universally unique identifier (UUID). Returns a UUID version 4 (random) by default.",
+      "inputs": [],
+      "optional_inputs": [
+        "version"
+      ],
+      "outputs": [
+        "uuid"
+      ],
+      "function": "uuid_generator",
+      "function_def": "import uuid\n\ndef uuid_generator(output: list, version: int = 4) -> tuple:\n    \"\"\"\n    Generates a UUID.\n    - version=1: Based on host ID and current time.\n    - version=4: Based on random numbers (most common).\n    \"\"\"\n    try:\n        version = int(version)\n        if version == 1:\n            generated_uuid = uuid.uuid1()\n        elif version == 4:\n            generated_uuid = uuid.uuid4()\n        else:\n            return '', {'status': {'value': 1, 'reason': f'Unsupported UUID version: {version}. Use 1 or 4.'}}\n        \n        return str(generated_uuid), {'status': {'value': 0, 'reason': 'Success'}}\n    except Exception as e:\n        return '', {'status': {'value': 1, 'reason': f'Failed to generate UUID: {e}'}}"
     },
     "vocabulary_agent": {
       "type": "template",
