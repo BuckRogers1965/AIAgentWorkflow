@@ -1190,50 +1190,14 @@
         }
       ]
     },
-    "exec_api_call": {
-      "type": "proc",
-      "help": "makes an http api request",
-      "function": "exec_api_call",
-      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\n\ndef exec_api_call(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.post(url, headers=headers_dict, data=payload_bytes,timeout=6000)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}",
-      "inputs": [
-        "url",
-        "headers",
-        "payload"
-      ],
-      "optional_inputs": [],
-      "outputs": [
-        "response"
-      ],
-      "gui": {
-        "param_hints": {
-          "url": {
-            "tooltip": "Uniform Resource Locator",
-            "validation": {
-              "type": "string",
-              "regex": "^https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+"
-            }
-          }
-        }
-      },
-      "run_config": {
-        "last_inputs": {
-          "url": "dgsgssdgsg",
-          "headers": "",
-          "payload": ""
-        },
-        "last_log_level": "INFO",
-        "test_cases": []
-      }
-    },
     "exec_api_call_get": {
       "type": "proc",
       "help": "makes an http api request",
       "function": "exec_api_call_get",
-      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\ndef exec_api_call_get(url: str, headers: Dict[str, str], payload: str, output:list) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries: int = 3\n\tretry_delays = [60, 120, 240]\t# 1 minute, 2 minutes, 4 minutes backoff\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.get(url, headers=headers_dict,timeout=30)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}",
+      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\ndef exec_api_call_get(url: str, headers: Dict[str, str], output:list, max_retries: int = 3, initial_delay: int = 5) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries = int(max_retries)\n\tdelay = int(initial_delay)\n\n\t# Dynamically calculate retry delays with exponential backoff\n\tretry_delays = [delay * (2 ** i) for i in range(max_retries)]\n\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\tif not headers or not headers.strip():\n\t\theaders = '{\"Content-Type\": \"application/json\", \"Accept\": \"application/json\"}'\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\t\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.get(url, headers=headers_dict,timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}",
       "inputs": [
         "url",
-        "headers",
-        "payload"
+        "headers"
       ],
       "optional_inputs": [],
       "outputs": [
@@ -1241,12 +1205,24 @@
       ],
       "run_config": {
         "last_inputs": {
-          "url": "",
+          "url": "http://google.com",
           "headers": "",
           "payload": ""
         },
-        "last_log_level": "INFO",
-        "test_cases": []
+        "last_log_level": "DEBUG",
+        "test_cases": [
+          {
+            "name": "look up google page",
+            "notes": "",
+            "date_added": "2025-08-15T14:21:58.213462",
+            "inputs": {
+              "url": "http://google.com",
+              "headers": "{\"Content-Type\": \"application/json\", \"Accept\": \"application/json\"}",
+              "payload": ""
+            },
+            "assertions": []
+          }
+        ]
       },
       "gui": {
         "param_hints": {
@@ -1264,6 +1240,41 @@
             "tooltip": "Not used for Gets."
           }
         }
+      }
+    },
+    "exec_api_call_post": {
+      "type": "proc",
+      "help": "makes an http api request",
+      "function": "exec_api_call",
+      "function_def": "import requests\nimport time\nfrom requests.exceptions import RequestException, Timeout, ConnectionError\n\ndef exec_api_call(url: str, headers: Dict[str, str], payload: str, output:list, max_retries: int = 3, initial_delay: int = 5) -> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:\n\tmax_retries = int(max_retries)\n\tdelay = int(initial_delay)\n\n\t# Dynamically calculate retry delays with exponential backoff\n\tretry_delays = [delay * (2 ** i) for i in range(max_retries)]\n\n\tretryable_status_codes = {408, 429, 500, 502, 503, 504}\n\n\tif not headers or not headers.strip():\n\t\theaders = '{\"Content-Type\": \"application/json\", \"Accept\": \"application/json\"}'\n\n\theaders_dict = json.loads(headers) if isinstance(headers, str) else headers # Convert headers string to dictionary\n\tpayload_bytes = payload.encode('utf-8', errors='replace') if isinstance(payload, str) else payload # Convert payload to bytes\n\n\tfor attempt in range(max_retries):\n\t\ttry:\n\t\t\tresponse = requests.post(url, headers=headers_dict, data=payload_bytes,timeout=6000)\n\t\t\t#response = requests.post(url, headers=headers, data=payload.encode('latin-1'), timeout=30)\n\t\t\t\n\t\t\tif response.status_code == 200:\n\t\t\t\t# Decode response content, replacing any problematic characters\n\t\t\t\tresponse_text = response.content.decode('utf-8', errors='replace') \n\t\t\t\treturn response_text, {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\t\t\telif response.status_code in retryable_status_codes:\n\t\t\t\tif attempt < max_retries - 1:\n\t\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\t\tlogging.warning(\"Received status code %d. Retrying in %d seconds.\" % (response.status_code, delay))\n\t\t\t\t\ttime.sleep(delay)\n\t\t\t\telse:\n\t\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error after %d attempts: %s\" % (response.status_code, max_retries, response.text)}}\n\t\t\telse:\n\t\t\t\t# Return the specific status code for non-retryable responses\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"%d HTTP Error: %s\" % (response.status_code, response.text)}}\n\t\t\t\t\n\t\texcept Timeout as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"API call timed out. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"API call timed out after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 408 API call timed out after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept ConnectionError as e:\n\t\t\tif attempt < max_retries - 1:\n\t\t\t\tdelay = retry_delays[attempt]\n\t\t\t\tlogging.warning(\"Connection error. Retrying in %d seconds. Error: %s\" % (delay, str(e)))\n\t\t\t\ttime.sleep(delay)\n\t\t\telse:\n\t\t\t\tlogging.error(\"Connection failed after %d attempts. Error: %s\" % (max_retries, str(e)))\n\t\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 503 Connection failed after %d attempts: %s\" % (max_retries, str(e))}}\n\t\t\t\t\n\t\texcept RequestException as e:\n\t\t\t# For other request exceptions, don't retry\n\t\t\tlogging.error(\"Request exception: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 400 Request exception: %s\" % str(e)}}\n\t\t\t\n\t\texcept Exception as e:\n\t\t\t# For other unexpected exceptions, don't retry\n\t\t\tlogging.error(\"Unexpected error in API call: %s\" % str(e))\n\t\t\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 500 Unexpected error in API call: %s\" % str(e)}}\n\t\n\treturn b\"\", {\"status\": {\"value\": 1, \"reason\": \"HTTP Error 429 Max retries reached without successful API call\"}}",
+      "inputs": [
+        "url",
+        "headers",
+        "payload"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "response"
+      ],
+      "gui": {
+        "param_hints": {
+          "url": {
+            "tooltip": "Uniform Resource Locator",
+            "validation": {
+              "type": "string",
+              "regex": "^https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+"
+            }
+          }
+        }
+      },
+      "run_config": {
+        "last_inputs": {
+          "url": "https://google.com",
+          "headers": "",
+          "payload": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
       }
     },
     "exit_workflow": {
@@ -1659,7 +1670,7 @@
     },
     "get_comfy_response": {
       "type": "workflow",
-      "help": "Given a prompt and a  netative prompt, go get a base64 image from a stable diffusion endpoint. ",
+      "help": "Given a prompt and a  netative prompt, go get a base64 image from a stable diffusion endpoint.",
       "inputs": [
         "prompt",
         "negative_prompt"
@@ -1670,19 +1681,19 @@
       ],
       "steps": [
         {
-          "agent": "create_cui_payload",
+          "agent": "create_comfy_payload",
           "params": {
-            "prompt": "$prompt",
-            "negative_prompt": "$negative_prompt",
-            "sampler_name": "Euler",
-            "steps": "30",
-            "cfg_scale": "6",
             "height": "512",
+            "negative_prompt": "$negative_prompt",
+            "seed": "-1",
+            "steps": "30",
+            "prompt": "$prompt",
             "width": "512",
-            "seed": "-1"
+            "cfg_scale": "4",
+            "sampler_name": ""
           },
           "output": [
-            "payload"
+            "encoded_image"
           ]
         },
         {
@@ -1696,11 +1707,11 @@
           ]
         },
         {
-          "agent": "exec_api_call",
+          "agent": "exec_api_call_post",
           "params": {
-            "url": "$url",
             "headers": "{\"Content-Type\": \"application/json\"}",
-            "payload": "$payload"
+            "url": "$url",
+            "payload": "$encoded_image"
           },
           "output": [
             "response"
@@ -1716,7 +1727,8 @@
             "data"
           ]
         }
-      ]
+      ],
+      "return_on_fail": 0
     },
     "get_delivery_date": {
       "type": "proc",
@@ -1835,7 +1847,7 @@
           ]
         },
         {
-          "agent": "exec_api_call",
+          "agent": "exec_api_call_post",
           "params": {
             "url": "$url",
             "headers": "{\"Content-Type\": \"application/json\"}",
@@ -1896,7 +1908,7 @@
           ]
         },
         {
-          "agent": "exec_api_call",
+          "agent": "exec_api_call_post",
           "params": {
             "url": "$url",
             "headers": "{\"Content-Type\": \"application/json\"}",
@@ -1965,7 +1977,7 @@
           ]
         },
         {
-          "agent": "exec_api_call",
+          "agent": "exec_api_call_post",
           "params": {
             "url": "$url",
             "headers": "{\"Content-Type\": \"application/json\"}",
@@ -2023,8 +2035,8 @@
         {
           "agent": "exec_api_call_get",
           "params": {
-            "payload": "",
             "headers": "$headers",
+            "output": "$headers",
             "url": "$url"
           },
           "output": [
@@ -2712,6 +2724,67 @@
       ],
       "return_on_fail": 0
     },
+    "mssql_query": {
+      "type": "proc",
+      "help": "Connects to MS SQL Server with a robust, configurable retry policy. May require system-level ODBC drivers.",
+      "inputs": [
+        "hostname",
+        "username",
+        "password",
+        "database",
+        "sql_command"
+      ],
+      "optional_inputs": [
+        "port",
+        "max_retries",
+        "initial_delay"
+      ],
+      "outputs": [
+        "results"
+      ],
+      "function": "mssql_query",
+      "function_def": "import pyodbc\nimport time\n\ndef mssql_query(hostname: str, username: str, password: str, database: str, sql_command: str, output: list, port: int = 1433, max_retries: int = 3, initial_delay: int = 5) -> tuple:\n    retry_count = 0\n    delay = int(initial_delay)\n    max_retries = int(max_retries)\n    conn_str = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={hostname},{port};DATABASE={database};UID={username};PWD={password};Connection Timeout=10'\n    \n    while retry_count < max_retries:\n        conn = None\n        try:\n            conn = pyodbc.connect(conn_str)\n            cursor = conn.cursor()\n            is_select = sql_command.strip().lower().startswith('select')\n            cursor.execute(sql_command)\n            \n            if is_select:\n                columns = [column[0] for column in cursor.description]\n                result = [dict(zip(columns, row)) for row in cursor.fetchall()]\n            else:\n                conn.commit()\n                result = cursor.rowcount\n                \n            return result, {'status': {'value': 0, 'reason': 'Success'}}\n\n        except pyodbc.OperationalError as e:\n            retryable_states = ['08001', '08S01'] # Connection-related SQLSTATES\n            if e.args[0] in retryable_states:\n                retry_count += 1\n                if retry_count >= max_retries:\n                    return [], {'status': {'value': 1, 'reason': f'MS SQL connection failed after {max_retries} attempts: {e}'}}\n                time.sleep(delay)\n                delay *= 2\n            else:\n                return [], {'status': {'value': 1, 'reason': f'MS SQL execution error (non-retryable): {e}'}}\n        \n        except pyodbc.Error as e:\n            return [], {'status': {'value': 1, 'reason': f'MS SQL execution error (non-retryable): {e}'}}\n\n        finally:\n            if conn:\n                if 'cursor' in locals() and not cursor.connection.closed:\n                    cursor.close()\n                conn.close()\n    \n    return [], {'status': {'value': 1, 'reason': f'MS SQL query failed after exhausting all {max_retries} retries.'}}"
+    },
+    "mysql_query": {
+      "type": "proc",
+      "help": "Connects to MySQL/MariaDB with a robust, configurable retry policy for transient connection errors.",
+      "inputs": [
+        "hostname",
+        "username",
+        "password",
+        "database",
+        "sql_command"
+      ],
+      "optional_inputs": [
+        "port",
+        "max_retries",
+        "initial_delay"
+      ],
+      "outputs": [
+        "results"
+      ],
+      "function": "mysql_query",
+      "function_def": "import mysql.connector\nimport time\n\ndef mysql_query(hostname: str, username: str, password: str, database: str, sql_command: str, output: list, port: int = 3306, max_retries: int = 3, initial_delay: int = 5) -> tuple:\n    retry_count = 0\n    delay = int(initial_delay)\n    max_retries = int(max_retries)\n\n    while retry_count < max_retries:\n        conn = None\n        try:\n            conn = mysql.connector.connect(\n                host=hostname, user=username, password=password, database=database, port=port, connection_timeout=10\n            )\n            cursor = conn.cursor(dictionary=True)\n            is_select = sql_command.strip().lower().startswith('select')\n            cursor.execute(sql_command)\n            \n            if is_select:\n                result = cursor.fetchall()\n            else:\n                conn.commit()\n                result = cursor.rowcount\n                \n            return result, {'status': {'value': 0, 'reason': 'Success'}}\n\n        except mysql.connector.errors.OperationalError as e:\n            retry_count += 1\n            if retry_count >= max_retries:\n                return [], {'status': {'value': 1, 'reason': f'MySQL connection failed after {max_retries} attempts: {e}'}}\n            time.sleep(delay)\n            delay *= 2\n        \n        except mysql.connector.Error as e:\n            return [], {'status': {'value': 1, 'reason': f'MySQL execution error (non-retryable): {e}'}}\n        \n        finally:\n            if conn and conn.is_connected():\n                if 'cursor' in locals() and cursor and not cursor.is_closed():\n                    cursor.close()\n                conn.close()\n    \n    return [], {'status': {'value': 1, 'reason': f'MySQL query failed after exhausting all {max_retries} retries.'}}"
+    },
+    "oracle_query": {
+      "type": "proc",
+      "help": "Connects to Oracle DB with a robust, configurable retry policy. Requires a DSN (e.g., 'hostname:port/servicename').",
+      "inputs": [
+        "username",
+        "password",
+        "dsn",
+        "sql_command"
+      ],
+      "optional_inputs": [
+        "max_retries",
+        "initial_delay"
+      ],
+      "outputs": [
+        "results"
+      ],
+      "function": "oracle_query",
+      "function_def": "import oracledb\nimport time\n\ndef oracle_query(username: str, password: str, dsn: str, sql_command: str, output: list, max_retries: int = 3, initial_delay: int = 5) -> tuple:\n    retry_count = 0\n    delay = int(initial_delay)\n    max_retries = int(max_retries)\n    \n    # Oracle driver-specific retryable error codes\n    retryable_errors = ['DPI-1047', 'DPI-1010', 'ORA-12514', 'ORA-12541', 'ORA-03113', 'ORA-03135']\n\n    while retry_count < max_retries:\n        conn = None\n        try:\n            conn = oracledb.connect(user=username, password=password, dsn=dsn)\n            cursor = conn.cursor()\n            is_select = sql_command.strip().lower().startswith('select')\n            cursor.execute(sql_command)\n            \n            if is_select:\n                columns = [col[0] for col in cursor.description]\n                cursor.rowfactory = lambda *args: dict(zip(columns, args))\n                result = cursor.fetchall()\n            else:\n                conn.commit()\n                result = cursor.rowcount\n                \n            return result, {'status': {'value': 0, 'reason': 'Success'}}\n\n        except oracledb.DatabaseError as e:\n            error_obj, = e.args\n            is_retryable = any(code in error_obj.message for code in retryable_errors)\n            if is_retryable:\n                retry_count += 1\n                if retry_count >= max_retries:\n                    return [], {'status': {'value': 1, 'reason': f'Oracle connection failed after {max_retries} attempts: {e}'}}\n                time.sleep(delay)\n                delay *= 2\n            else:\n                return [], {'status': {'value': 1, 'reason': f'Oracle execution error (non-retryable): {e}'}}\n        \n        finally:\n            if conn:\n                if 'cursor' in locals() and cursor and cursor.is_open():\n                    cursor.close()\n                conn.close()\n    \n    return [], {'status': {'value': 1, 'reason': f'Oracle query failed after exhausting all {max_retries} retries.'}}"
+    },
     "outline_agent": {
       "type": "template",
       "inputs": [
@@ -2771,6 +2844,27 @@
           }
         ]
       }
+    },
+    "postgres_query": {
+      "type": "proc",
+      "help": "Connects to PostgreSQL with a robust, configurable retry policy for transient connection errors.",
+      "inputs": [
+        "hostname",
+        "username",
+        "password",
+        "database",
+        "sql_command"
+      ],
+      "optional_inputs": [
+        "port",
+        "max_retries",
+        "initial_delay"
+      ],
+      "outputs": [
+        "results"
+      ],
+      "function": "postgres_query",
+      "function_def": "import psycopg2\nimport psycopg2.extras\nimport time\n\ndef postgres_query(hostname: str, username: str, password: str, database: str, sql_command: str, output: list, port: int = 5432, max_retries: int = 3, initial_delay: int = 5) -> tuple:\n    retry_count = 0\n    delay = int(initial_delay)\n    max_retries = int(max_retries)\n\n    while retry_count < max_retries:\n        conn = None\n        try:\n            conn = psycopg2.connect(\n                host=hostname, user=username, password=password, dbname=database, port=port, connect_timeout=10\n            )\n            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)\n            is_select = sql_command.strip().lower().startswith('select')\n            cursor.execute(sql_command)\n            \n            if is_select:\n                result = [dict(row) for row in cursor.fetchall()]\n            else:\n                conn.commit()\n                result = cursor.rowcount\n                \n            return result, {'status': {'value': 0, 'reason': 'Success'}}\n\n        except psycopg2.OperationalError as e:\n            retry_count += 1\n            if retry_count >= max_retries:\n                return [], {'status': {'value': 1, 'reason': f'PostgreSQL connection failed after {max_retries} attempts: {e}'}}\n            time.sleep(delay)\n            delay *= 2\n        \n        except psycopg2.Error as e:\n            return [], {'status': {'value': 1, 'reason': f'PostgreSQL execution error (non-retryable): {e}'}}\n        \n        finally:\n            if conn:\n                if 'cursor' in locals() and cursor and not cursor.closed:\n                    cursor.close()\n                conn.close()\n\n    return [], {'status': {'value': 1, 'reason': f'PostgreSQL query failed after exhausting all {max_retries} retries.'}}"
     },
     "promoted_workflow_8245": {
       "type": "workflow",
