@@ -350,13 +350,12 @@ class ValidationRulesModal(ctk.CTkToplevel):
         except ValueError: messagebox.showerror("Error", "Min/Max values must be valid numbers.", parent=self)
 
 class GuiHintsEditorFrame(ctk.CTkFrame):
-    def __init__(self, master, agent_data, theme, app_ref, sync_callback=None):
+    def __init__(self, master, agent_data, theme, app_ref): # Removed sync_callback
         super().__init__(master, fg_color="transparent")
         self.agent_data = agent_data
         self.theme = theme
         self.app_ref = app_ref
         self.hint_cards = {}
-        self.sync_callback = sync_callback  # Callback for auto-sync
         
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -373,13 +372,8 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         self.populate_dropdown()
 
     def populate_dropdown(self):
-        # This function now correctly uses the stale self.agent_data, but filters
-        # against the live self.hint_cards dictionary, which is the correct logic.
         all_params = self.agent_data.get("inputs", []) + self.agent_data.get("optional_inputs", [])
-        
-        # The key is to check what's currently a card.
         active_params = self.hint_cards.keys() 
-        
         available_params = sorted([p for p in all_params if p not in active_params and p])
         
         if not available_params:
@@ -398,8 +392,6 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         if "Add Hint" in param_name: return
         self._create_hint_card(param_name)
         self.populate_dropdown()
-        if self.sync_callback:
-            self.sync_callback()
 
     def _create_hint_card(self, param_name, hint_data=None):
         if hint_data is None: hint_data = {}
@@ -419,14 +411,12 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         tooltip_entry = ctk.CTkEntry(card)
         tooltip_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=2)
         tooltip_entry.insert(0, hint_data.get("tooltip", ""))
-        tooltip_entry.bind("<KeyRelease>", lambda e: self.sync_callback() if self.sync_callback else None)
         widgets["tooltip"] = tooltip_entry
 
         ctk.CTkLabel(card, text="Example:").grid(row=2, column=0, sticky="w", padx=10)
         example_entry = ctk.CTkEntry(card)
         example_entry.grid(row=2, column=1, sticky="ew", padx=5, pady=2)
         example_entry.insert(0, hint_data.get("example", ""))
-        example_entry.bind("<KeyRelease>", lambda e: self.sync_callback() if self.sync_callback else None)
         widgets["example"] = example_entry
 
         ctk.CTkLabel(card, text="Data Source:").grid(row=3, column=0, sticky="w", padx=10)
@@ -437,7 +427,6 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
         data_source_entry = ctk.CTkEntry(card)
         data_source_entry.grid(row=4, column=1, sticky="ew", padx=5, pady=2)
         data_source_entry.insert(0, hint_data.get("data_source", ""))
-        data_source_entry.bind("<KeyRelease>", lambda e: self.sync_callback() if self.sync_callback else None)
         widgets["data_source"] = data_source_entry
 
         data_source_var = ctk.StringVar()
@@ -455,8 +444,6 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
             if choice != "Default (Custom)":
                 data_source_entry.delete(0, "end")
                 data_source_entry.insert(0, choice)
-                if self.sync_callback:
-                    self.sync_callback()
 
         def on_entry_change(*args):
             data_source_var.set("Default (Custom)")
@@ -481,8 +468,6 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
             self.wait_window(modal)
             if modal.saved: 
                 widgets["validation_data"] = modal.validation_data
-                if self.sync_callback:
-                    self.sync_callback()
         validation_btn.configure(command=open_validation_modal)
         
         self.hint_cards[param_name] = {"card": card, "widgets": widgets}
@@ -492,8 +477,6 @@ class GuiHintsEditorFrame(ctk.CTkFrame):
             self.hint_cards[param_name]["card"].destroy()
             del self.hint_cards[param_name]
             self.populate_dropdown()
-            if self.sync_callback:
-                self.sync_callback()
 
     def get_data(self):
         param_hints = {}
@@ -647,7 +630,7 @@ class ProcEditorFrame(BaseEditorFrame):
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
-        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref, self.sync_gui_hints)
+        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref)
         self.gui_hints_frame.grid(row=0, column=0, sticky="nsew")
         ctk.CTkButton(tab, text="Advanced GUI Settings (for Workflow Editor)...", command=self.open_gui_settings).grid(row=1, column=0, sticky="ew", padx=10, pady=10)
 
@@ -773,7 +756,7 @@ class TemplateEditorFrame(BaseEditorFrame):
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
-        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref, self.sync_gui_hints)
+        self.gui_hints_frame = GuiHintsEditorFrame(tab, self.data, self.theme, self.app_ref)
         self.gui_hints_frame.grid(row=0, column=0, sticky="nsew")
 
     def create_inputs_tab(self, tab):

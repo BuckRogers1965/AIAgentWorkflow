@@ -37,6 +37,19 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         self.transient(parent)
         self.grab_set()
 
+
+    def save(self):
+        self.get_form_data()
+        self.saved = True
+        self.destroy()
+
+    def cancel(self):
+        self.saved = False
+        self.destroy()
+
+    def get_result(self):
+        return self.editing_data
+
     def _get_param_font(self):
         """Helper method for PresetSelectorMixin"""
         return ctk.CTkFont(
@@ -213,6 +226,7 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         value_entry.insert(0, value)
         value_entry.pack(side="left", expand=True, fill="x")
         value_entry.bind("<FocusIn>", lambda event, entry=value_entry: self.set_active_entry(entry))
+        value_entry.bind("<KeyRelease>", lambda event, entry=value_entry: self.validate_entry_variables(entry))
         self.param_entries[f'param_val_{key}'] = value_entry
         self.apply_common_param_hints(key, value_entry, hint)
         self.validate_entry_variables(value_entry)
@@ -276,9 +290,25 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             for output_var in step.get('output', []): 
                 self.available_vars.add(output_var)
 
+
     def validate_entry_variables(self, entry_widget):
         text = entry_widget.get()
+
         found_vars = re.findall(r'\$(\w+)', text)
+
+        # If text starts with $, it must be a valid variable reference
+        if text.startswith('$'):
+            if not found_vars:
+                entry_widget.configure(border_color="red", border_width=2)
+                return
+            
+            is_valid = all(var in self.available_vars for var in found_vars)
+            entry_widget.configure(
+                border_color="red" if not is_valid else self.default_border_color,
+                border_width=2 if not is_valid else 1
+            )
+            return
+
 
         # Let the hint validation handle the border color if it exists
         for key, widget in self.param_entries.items():
@@ -291,19 +321,14 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
                                                     param_hints[param_key], self.available_vars)
                     return
 
-        # Standard variable validation for fields without validation hints
+
+        # Standard validation for fields without validation hints
         if not text:
             entry_widget.configure(border_color=self.default_border_color, border_width=1)
             return
-        if not found_vars:
-            entry_widget.configure(border_color=self.literal_border_color, border_width=2)
-            return
         
-        is_valid = all(var in self.available_vars for var in found_vars)
-        entry_widget.configure(
-            border_color="red" if not is_valid else self.default_border_color,
-            border_width=2 if not is_valid else 1
-        )
+        # If we get here, it's a literal value - show blue border
+        entry_widget.configure(border_color=self.literal_border_color, border_width=2)
 
     def set_active_entry(self, entry_widget):
         self.active_entry = entry_widget
