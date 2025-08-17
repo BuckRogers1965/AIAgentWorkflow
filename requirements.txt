@@ -44,4 +44,22 @@ html
 urllib
 
 
+# --- For SMB (Windows/Samba file share) agents ---
+pysmb
+
+# --- For S3 (AWS and S3-compatible object storage) agents ---
+boto3
+
+# --- For Database Connector Agents ---
+# For MySQL / MariaDB
+mysql-connector-python
+
+# For PostgreSQL
+psycopg2-binary
+
+# For Oracle DB
+oracledb
+
+# For Microsoft SQL Server
+pyodbc
 
