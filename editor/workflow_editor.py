@@ -9,6 +9,77 @@ import json
 # Import the necessary classes from its module
 from ui_editors import BaseEditorFrame, ListEditorFrame, GuiHintsEditorFrame
 
+
+class VersionSelectorModal(ctk.CTkToplevel):
+    """A simple modal to let the user choose a specific agent version to add."""
+    def __init__(self, parent, all_versions: list[str]):
+        super().__init__(parent)
+        self.title("Select Version")
+        self.result = None
+        
+        parent_geo = parent.winfo_geometry().split('+')
+        parent_x = int(parent_geo[1])
+        parent_y = int(parent_geo[2])
+        parent_w = int(parent_geo[0].split('x')[0])
+        self.geometry(f"300x{50 + len(all_versions) * 40}+{parent_x + parent_w // 3}+{parent_y + 200}")
+
+        self.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(self, text="Choose a version to add to the workflow:").pack(pady=10, padx=10)
+        
+        # Robust sorting key function that handles plain names
+        def version_sort_key(full_id):
+            match = re.search(r'/v(\d+)\.(\d+)$', full_id)
+            if match:
+                return (int(match.group(1)), int(match.group(2)))
+            else:
+                return (-1, -1)
+        
+        for version_id in sorted(all_versions, key=version_sort_key):
+            version_match = re.search(r'v\d+\.\d+$', version_id)
+            if version_match:
+                label_text = version_match.group(0)
+            else:
+                label_text = f"'{version_id}' (no version)"
+
+            btn = ctk.CTkButton(self, text=label_text, command=lambda v=version_id: self.select_version(v))
+            btn.pack(pady=5, padx=20, fill="x")
+
+        self.transient(parent)
+        self.grab_set()
+
+    def select_version(self, version_id):
+        self.result = version_id
+        self.destroy()
+
+class MajorVersionSelectorModal(ctk.CTkToplevel):
+    """A simple modal to let the user choose a major version branch."""
+    def __init__(self, parent, major_versions: list[str]):
+        super().__init__(parent)
+        self.title("Select Version Branch")
+        self.result = None
+        
+        parent_geo = parent.winfo_geometry().split('+')
+        parent_x = int(parent_geo[1])
+        parent_y = int(parent_geo[2])
+        parent_w = int(parent_geo[0].split('x')[0])
+        self.geometry(f"250x{50 + len(major_versions) * 40}+{parent_x + parent_w // 3}+{parent_y + 200}")
+
+        self.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(self, text="This agent has multiple major versions.\nChoose a branch to add:").pack(pady=10, padx=10)
+        
+        for version_str in sorted(major_versions):
+            btn = ctk.CTkButton(self, text=f"Use latest in {version_str}", command=lambda v=version_str: self.select_version(v))
+            btn.pack(pady=5, padx=20, fill="x")
+
+        self.transient(parent)
+        self.grab_set()
+
+    def select_version(self, version):
+        self.result = version
+        self.destroy()
+
 class PromoteToWorkflowModal(ctk.CTkToplevel):
     def __init__(self, parent, block_inputs, block_outputs, proposed_name):
         super().__init__(parent)
@@ -195,6 +266,256 @@ class WorkflowEditorFrame(BaseEditorFrame):
         self.after(20, self._drag_polling_loop)
 
     def _on_drop(self, event):
+        if not self.is_dragging: return
+        self.is_dragging = False
+        self.winfo_toplevel().unbind("<ButtonRelease-1>")
+        self.winfo_toplevel().unbind("<Escape>")
+        if self.drag_window: self.drag_window.destroy(); self.drag_window = None
+        self._stop_scroll()
+        self.drop_indicator.place_forget()
+
+        app = self.winfo_toplevel()
+
+        if self.drag_data["source"] == "agent_list" and self.drag_data["drop_index"] != -1:
+            grouping_key = self.drag_data["payload"]
+            drop_index = self.drag_data["drop_index"]
+            
+            full_ids = app.agent_families.get(grouping_key, [])
+
+            if not full_ids:
+                app.show_toast(f"Could not find agent '{grouping_key}'", is_error=True)
+            
+            elif len(full_ids) == 1:
+                # If there's only one option, just insert it directly.
+                self.insert_agent_as_step(full_ids[0], drop_index)
+
+            else:
+                # If there are multiple options, show the selector modal.
+                modal = VersionSelectorModal(self, full_ids)
+                self.wait_window(modal)
+                chosen_version_id = modal.result
+                
+                if chosen_version_id:
+                    self.insert_agent_as_step(chosen_version_id, drop_index)
+        
+        elif self.drag_data["source"] == "steps_frame" and self.drag_data["drop_index"] != -1:
+            self.move_step_to_index(self.drag_data["source_index"], self.drag_data["drop_index"])
+            
+        self.refresh_steps_list()
+        self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
+        self.winfo_toplevel().configure(cursor="")
+
+    def _on_drop_old6(self, event):
+        if not self.is_dragging: return
+        self.is_dragging = False
+        self.winfo_toplevel().unbind("<ButtonRelease-1>")
+        self.winfo_toplevel().unbind("<Escape>")
+        if self.drag_window: self.drag_window.destroy(); self.drag_window = None
+        self._stop_scroll()
+        self.drop_indicator.place_forget()
+
+        # This now correctly gets the App instance, which has our helper methods
+        app = self.winfo_toplevel()
+
+        if self.drag_data["source"] == "agent_list" and self.drag_data["drop_index"] != -1:
+            grouping_key = self.drag_data["payload"]
+            drop_index = self.drag_data["drop_index"]
+            
+            full_ids = app.agent_families.get(grouping_key, [])
+
+            if not full_ids:
+                app.show_toast(f"Could not find agent '{grouping_key}'", is_error=True)
+            
+            # This check uses a method that now exists on `app`
+            elif len(full_ids) == 1 and not app._get_major_version_str(full_ids[0]):
+                self.insert_agent_as_step(full_ids[0], drop_index)
+
+            else:
+                # This call will now succeed
+                grouped_versions = app._get_versions_grouped_by_major(full_ids)
+                major_versions = list(grouped_versions.keys())
+
+                if len(major_versions) > 1:
+                    modal = MajorVersionSelectorModal(self, major_versions)
+                    self.wait_window(modal)
+                    chosen_major = modal.result
+                    
+                    if chosen_major:
+                        # This call will now succeed
+                        latest_in_branch = app._find_latest_version(grouped_versions[chosen_major])
+                        self.insert_agent_as_step(latest_in_branch, drop_index)
+                
+                else:
+                    # This call will now succeed
+                    latest_id = app._find_latest_version(full_ids)
+                    self.insert_agent_as_step(latest_id, drop_index)
+        
+        elif self.drag_data["source"] == "steps_frame" and self.drag_data["drop_index"] != -1:
+            self.move_step_to_index(self.drag_data["source_index"], self.drag_data["drop_index"])
+            
+        self.refresh_steps_list()
+        self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
+        self.winfo_toplevel().configure(cursor="")
+
+    def _on_drop_old5(self, event):
+        if not self.is_dragging: return
+        self.is_dragging = False
+        self.winfo_toplevel().unbind("<ButtonRelease-1>")
+        self.winfo_toplevel().unbind("<Escape>")
+        if self.drag_window: self.drag_window.destroy(); self.drag_window = None
+        self._stop_scroll()
+        self.drop_indicator.place_forget()
+
+        # --- DEBUGGING AND FIX ---
+        # The root cause is that self.app_ref is not reliable in event callbacks.
+        # The most reliable way to get the main App instance is from the top-level window.
+        app = self.winfo_toplevel()
+        
+        # DEBUG PRINT: Let's confirm what 'app' is. This should now be the App object.
+        print(f"DEBUG: Toplevel window is: {type(app)}")
+        print(f"DEBUG: Does it have the method? {hasattr(app, '_get_versions_grouped_by_major')}")
+        # --- END DEBUGGING ---
+
+        if self.drag_data["source"] == "agent_list" and self.drag_data["drop_index"] != -1:
+            grouping_key = self.drag_data["payload"]
+            drop_index = self.drag_data["drop_index"]
+            
+            full_ids = app.agent_families.get(grouping_key, [])
+
+            if not full_ids:
+                app.show_toast(f"Could not find agent '{grouping_key}'", is_error=True)
+            
+            elif len(full_ids) == 1 and not app._get_major_version_str(full_ids[0]):
+                self.insert_agent_as_step(full_ids[0], drop_index)
+
+            else:
+                grouped_versions = app._get_versions_grouped_by_major(full_ids)
+                major_versions = list(grouped_versions.keys())
+
+                if len(major_versions) > 1:
+                    modal = MajorVersionSelectorModal(self, major_versions)
+                    self.wait_window(modal)
+                    chosen_major = modal.result
+                    
+                    if chosen_major:
+                        latest_in_branch = app._find_latest_version(grouped_versions[chosen_major])
+                        self.insert_agent_as_step(latest_in_branch, drop_index)
+                
+                else:
+                    latest_id = app._find_latest_version(full_ids)
+                    self.insert_agent_as_step(latest_id, drop_index)
+        
+        elif self.drag_data["source"] == "steps_frame" and self.drag_data["drop_index"] != -1:
+            self.move_step_to_index(self.drag_data["source_index"], self.drag_data["drop_index"])
+            
+        self.refresh_steps_list()
+        self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
+        self.winfo_toplevel().configure(cursor="")
+
+    def _on_drop_old3(self, event):
+        if not self.is_dragging: return
+        self.is_dragging = False
+        self.winfo_toplevel().unbind("<ButtonRelease-1>")
+        self.winfo_toplevel().unbind("<Escape>")
+        if self.drag_window: self.drag_window.destroy(); self.drag_window = None
+        self._stop_scroll()
+        self.drop_indicator.place_forget()
+
+        # THIS IS THE FIX: Get a reliable reference to the main App instance
+        app = self.app_ref 
+
+        if self.drag_data["source"] == "agent_list" and self.drag_data["drop_index"] != -1:
+            grouping_key = self.drag_data["payload"]
+            drop_index = self.drag_data["drop_index"]
+            
+            full_ids = app.agent_families.get(grouping_key, [])
+
+            if not full_ids:
+                app.show_toast(f"Could not find agent '{grouping_key}'", is_error=True)
+            
+            elif len(full_ids) == 1 and not app._get_major_version_str(full_ids[0]):
+                self.insert_agent_as_step(full_ids[0], drop_index)
+
+            else:
+                grouped_versions = app._get_versions_grouped_by_major(full_ids)
+                major_versions = list(grouped_versions.keys())
+
+                if len(major_versions) > 1:
+                    modal = MajorVersionSelectorModal(self, major_versions)
+                    self.wait_window(modal)
+                    chosen_major = modal.result
+                    
+                    if chosen_major:
+                        latest_in_branch = app._find_latest_version(grouped_versions[chosen_major])
+                        self.insert_agent_as_step(latest_in_branch, drop_index)
+                
+                else:
+                    latest_id = app._find_latest_version(full_ids)
+                    self.insert_agent_as_step(latest_id, drop_index)
+        
+        elif self.drag_data["source"] == "steps_frame" and self.drag_data["drop_index"] != -1:
+            self.move_step_to_index(self.drag_data["source_index"], self.drag_data["drop_index"])
+            
+        self.refresh_steps_list()
+        self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
+        self.winfo_toplevel().configure(cursor="")
+
+    def _on_drop_old2(self, event):
+        if not self.is_dragging: return
+        self.is_dragging = False
+        self.winfo_toplevel().unbind("<ButtonRelease-1>")
+        self.winfo_toplevel().unbind("<Escape>")
+        if self.drag_window: self.drag_window.destroy(); self.drag_window = None
+        self._stop_scroll()
+        self.drop_indicator.place_forget()
+
+        # --- NEW LOGIC STARTS HERE ---
+        # Handle agent drop from the list
+        if self.drag_data["source"] == "agent_list" and self.drag_data["drop_index"] != -1:
+            grouping_key = self.drag_data["payload"] # This is the clean display name
+            drop_index = self.drag_data["drop_index"]
+            
+            # Use the app_ref to get all versions for this group
+            full_ids = self.app_ref.agent_families.get(grouping_key, [])
+
+            if not full_ids:
+                # This should not happen if the list is correct, but is a safe fallback
+                self.app_ref.show_toast(f"Could not find agent '{grouping_key}'", is_error=True)
+            
+            elif len(full_ids) == 1 and not self.app_ref._get_major_version_str(full_ids[0]):
+                # Case 0: It's a single, plain-named agent
+                self.insert_agent_as_step(full_ids[0], drop_index)
+
+            else:
+                grouped_versions = self.app_ref._get_versions_grouped_by_major(full_ids)
+                major_versions = list(grouped_versions.keys())
+
+                if len(major_versions) > 1:
+                    # Case 1: Multiple major versions exist -> Show modal
+                    modal = MajorVersionSelectorModal(self, major_versions)
+                    self.wait_window(modal)
+                    chosen_major = modal.result
+                    
+                    if chosen_major:
+                        latest_in_branch = self.app_ref._find_latest_version(grouped_versions[chosen_major])
+                        self.insert_agent_as_step(latest_in_branch, drop_index)
+                
+                else:
+                    # Case 2: Only one major version branch (or a plain name) -> Auto-select latest
+                    latest_id = self.app_ref._find_latest_version(full_ids)
+                    self.insert_agent_as_step(latest_id, drop_index)
+        
+        # --- END OF NEW LOGIC ---
+
+        # Handle moving a step within the workflow (original logic)
+        elif self.drag_data["source"] == "steps_frame" and self.drag_data["drop_index"] != -1:
+            self.move_step_to_index(self.drag_data["source_index"], self.drag_data["drop_index"])
+            
+        self.refresh_steps_list()
+        self.drag_data = {"source": None, "payload": None, "source_index": -1, "drop_index": -1}
+        self.winfo_toplevel().configure(cursor="")
+
+    def _on_drop_old(self, event):
         if not self.is_dragging: return
         self.is_dragging = False; self.winfo_toplevel().unbind("<ButtonRelease-1>"); self.winfo_toplevel().unbind("<Escape>")
         if self.drag_window: self.drag_window.destroy(); self.drag_window = None

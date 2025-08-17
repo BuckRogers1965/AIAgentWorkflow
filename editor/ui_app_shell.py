@@ -1,8 +1,10 @@
-# --- START OF FILE ui_app_shell.py ---
+# --- START OF COMPLETE FILE editor/ui_app_shell.py ---
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, Menu
 import copy
 import json
+import re
+import tkinter as tk # <-- NEW IMPORT
 
 from theme_manager import ThemeManager
 from ui_theme_editor import ThemeEditorModal
@@ -77,6 +79,8 @@ class App(ctk.CTk):
         self.search_text.trace("w", self.on_search_changed)
         self.show_hidden_agents_var = ctk.IntVar(value=0)
 
+        self.agent_families = {} 
+
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -85,22 +89,74 @@ class App(ctk.CTk):
         self.configure(fg_color=self.theme['colors']['bg_primary'])
 
         self.bind_all("<Control-v>", self.handle_paste_event)
-        self.bind_all("<Command-v>", self.handle_paste_event) # For macOS
+        self.bind_all("<Command-v>", self.handle_paste_event)
 
         self.create_ui_elements()
 
         self.focus_set()
 
+    def _get_major_version_str(self, full_id: str) -> str | None:
+        """
+        Extracts the major version string (e.g., 'v1', 'v2') from a full ID.
+        Returns None if it's not a versioned name.
+        """
+        match = re.search(r'/v(\d+)\.\d+$', full_id)
+        if match:
+            return f"v{match.group(1)}"
+        return None
+
+    def _get_versions_grouped_by_major(self, full_ids: list[str]) -> dict:
+        """
+        Groups a list of full IDs by their major version string.
+        Returns a dict like {'v1': ['.../v1.0', '.../v1.1'], 'v2': ['.../v2.0']}
+        """
+        grouped = {}
+        for full_id in full_ids:
+            major_str = self._get_major_version_str(full_id)
+            if major_str:
+                if major_str not in grouped:
+                    grouped[major_str] = []
+                grouped[major_str].append(full_id)
+        return grouped
+
+    def _get_agent_base_name(self, full_id: str) -> str:
+        """
+        Calculates the base name for an agent, which is the full path without the version.
+        - For '/path/name/v1.0', returns '/path/name'.
+        - For 'plain_name', returns 'plain_name'.
+        """
+        match = re.match(r'^(.*)/v(\d+\.\d+)$', full_id)
+        if match:
+            return match.group(1) # Return the part before the version
+        return full_id # It's a plain name, so the base name is the name itself
+
+    def _get_agent_grouping_key(self, full_id: str) -> str:
+        match = re.match(r'^(.*)/([^/]+)/v(\d+\.\d+)$', full_id)
+        if match:
+            return match.group(2)
+        return full_id
+
+    def _find_latest_version(self, version_ids: list[str]) -> str:
+        latest_version = (-1, -1)
+        latest_id = version_ids[0]
+
+        for full_id in version_ids:
+            match = re.search(r'/v(\d+)\.(\d+)$', full_id)
+            if match:
+                major, minor = int(match.group(1)), int(match.group(2))
+                if major > latest_version[0] or (major == latest_version[0] and minor >= latest_version[1]):
+                    latest_version = (major, minor)
+                    latest_id = full_id
+        
+        return latest_id
+
     def handle_paste_event(self, event=None):
-        """Handles paste events to create a new agent from clipboard JSON,
-           accepting either format and providing feedback on failure."""
         if self.current_agent_name is not None:
             return
 
         try:
             clipboard_content = self.clipboard_get()
             if not clipboard_content.strip():
-                # Don't show a toast for an empty paste
                 return
 
             import json_repair
@@ -119,81 +175,47 @@ class App(ctk.CTk):
                 self.process_pasted_agent(agent_definition_to_process)
                 return "break"
             else:
-                # --- NEW: Feedback for valid JSON that isn't an agent ---
                 self.show_toast("Paste failed: JSON does not appear to be a valid agent definition.", is_error=True)
-                return "break" # Prevent default paste
+                return "break"
 
         except (json.JSONDecodeError, TypeError):
-            # --- NEW: Feedback for invalid JSON ---
             self.show_toast("Paste failed: Clipboard does not contain valid JSON.", is_error=True)
-            return "break" # Prevent default paste
+            return "break"
         except self.tk.TclError:
-            # --- NEW: Feedback for non-text clipboard content ---
             self.show_toast("Paste failed: Clipboard does not contain text.", is_error=True)
-            return "break" # Prevent default paste
+            return "break"
 
     def process_pasted_agent(self, agent_data):
-        """Takes a valid agent dictionary and adds it to the system."""
-        # 1. Determine the base name from the pasted JSON.
-        # It's not standard for the agent name to be *inside* its own definition,
-        # so we check the clipboard content for the key.
-        
-        base_name = "pasted_agent" # Default if no name is found
+        base_name = "pasted_agent"
         try:
             clipboard_text = self.clipboard_get()
-            # A simple regex to find the key for the pasted object, e.g., "my_agent": { ... }
-            import re
             match = re.search(r'"([^"]+)"\s*:\s*\{', clipboard_text.strip())
             if match:
                 base_name = match.group(1)
         except Exception:
-            pass # Fallback to default name if clipboard fails or regex doesn't match
+            pass
         
-        # 2. Check if the name already exists. If so, create a unique version.
         if self.config_manager.get_agent_data(base_name):
             new_name = self.config_manager.generate_unique_name(base_name)
         else:
             new_name = base_name
 
-        # 3. Add the agent to the config manager with the new name
         self.config_manager.update_agent(new_name, agent_data)
         self.config_manager.save()
         
-        # 4. Update the UI
-        self.refresh_agent_list()
-        self.select_agent(new_name)
-        
-        self.show_toast(f"New agent created from clipboard: '{new_name}'")
-
-    def process_pasted_agent_ol(self, agent_data):
-        """Takes a valid agent dictionary and adds it to the system."""
-        # 4. Create and Load
-        # Propose a name, but ensure it's unique.
-        proposed_name = agent_data.pop('name', 'pasted_agent') # Use 'name' key if present
-        new_name = self.config_manager.generate_unique_name(proposed_name)
-        
-        # Add the agent to the config manager
-        self.config_manager.update_agent(new_name, agent_data)
-        self.config_manager.save()
-        
-        # Update the UI
         self.refresh_agent_list()
         self.select_agent(new_name)
         
         self.show_toast(f"New agent created from clipboard: '{new_name}'")
 
     def _search_entry_paste(self, event):
-        """Allows paste to work in the search entry and prevents default paste creation."""
-        # Use a CustomTkinter internal method to handle the paste for the entry
         try:
             self.search_entry.event_generate("<<Paste>>")
         except:
-            pass # Handle potential errors if event generation fails
-        return "break" # Prevent event from propagating to the main App.handle_paste_event
-
+            pass
+        return "break"
 
     def deselect_search_box(self, event=None):
-        """Explicitly removes focus from the search entry and gives it to the main window."""
         self.focus_set()
 
     def create_ui_elements(self):
@@ -256,10 +278,8 @@ class App(ctk.CTk):
         self.search_entry = ctk.CTkEntry(search_frame, textvariable=self.search_text, placeholder_text="Filter agents...")
         self.search_entry.grid(row=0, column=0, sticky="ew")
         
-        # --- THIS IS THE RESTORED "X" BUTTON ---
         clear_search_btn = ctk.CTkButton(search_frame, text="X", width=30, text_color="white", fg_color=self.theme['colors']['error'], command=lambda: self.search_text.set(""))
         clear_search_btn.grid(row=0, column=1, padx=(5, 0))
-        # --- END OF RESTORED BUTTON ---
         
         self.agent_scroll_frame = ctk.CTkScrollableFrame(self.agent_list_frame, fg_color=self.theme['colors']['bg_primary'])
         self.agent_scroll_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="nsew")
@@ -305,33 +325,41 @@ class App(ctk.CTk):
         self.editor_frame_instance.grid(row=0, column=0, sticky="nsew")
         
         self.refresh_agent_list()
-        
+
     def open_run_modal(self):
+        if not self.editor_frame_instance:
+            return
+
+        # Get the most up-to-date data from the form fields
+        current_agent_data = self.editor_frame_instance.get_data()
+        if current_agent_data is None:
+            messagebox.showerror("Error", "Cannot run agent. Please check editor for errors.")
+            return
+
+        # This part remains the same
+        self.show_overlay(f"Running '{self.current_agent_name}'...")
+        modal = RunAgentModal(self, self.current_agent_name, current_agent_data, self.core_lib, self.theme)
+        self.wait_window(modal)
+        self.hide_overlay()
+        
+    def open_run_modal_old(self):
         if not self.editor_frame_instance: return
-
-
-        # --- THIS IS THE FIX ---
-        # Before running, we manually collect the live code from the editor
-        # and update the in-memory `self.data` dictionary. This guarantees
-        # that the version we run is the version you see on the screen.
         
         agent_type = self.editor_frame_instance.data.get("type")
+        self.initial_interface_snapshot = {
+            "inputs": set(agent_data.get("inputs", [])),
+            "optional_inputs": set(agent_data.get("optional_inputs", [])),
+            "outputs": set(agent_data.get("outputs", []))
+        }
         
         if agent_type == "proc":
-            # For a proc agent, get the current text from the code editor widget.
             live_function_def = self.editor_frame_instance.func_def_text.get("1.0", "end-1c")
-            # Update the local data copy.
             self.editor_frame_instance.data['function_def'] = live_function_def
         
         elif agent_type == "template":
-            # For a template agent, get the current text from the prompt widget.
             live_prompt = self.editor_frame_instance.prompt_text.get("1.0", "end-1c")
-            # Update the local data copy.
             self.editor_frame_instance.data['prompt'] = live_prompt
             
-        # --- END OF FIX ---
-
-
         current_agent_data = self.editor_frame_instance.get_data()
         if current_agent_data is None:
             messagebox.showerror("Error", "Cannot run agent. Please check editor for errors.")
@@ -339,7 +367,6 @@ class App(ctk.CTk):
 
         self.show_overlay(f"Running '{self.current_agent_name}'...")
         modal = RunAgentModal(self, self.current_agent_name, current_agent_data, self.core_lib, self.theme)
-        #modal = RunAgentModal(self, self.current_agent_name, current_agent_data, self.core_lib)
         self.wait_window(modal)
         self.hide_overlay()
 
@@ -355,13 +382,21 @@ class App(ctk.CTk):
     
     def on_search_changed(self, *args):
         self.refresh_agent_list()
-    
+
     def refresh_agent_list(self):
         if hasattr(self, 'agent_scroll_frame'):
             self.agent_scroll_frame._parent_canvas.yview_moveto(0)
             self.agent_scroll_frame.update_idletasks()
         
         for widget in self.agent_scroll_frame.winfo_children(): widget.destroy()
+        
+        self.agent_families = {}
+        for full_id in self.config_manager.get_agent_names():
+            grouping_key = self._get_agent_grouping_key(full_id)
+            if grouping_key not in self.agent_families:
+                self.agent_families[grouping_key] = []
+            self.agent_families[grouping_key].append(full_id)
+
         search_term = self.search_text.get().lower()
         show_hidden = self.show_hidden_agents_var.get() == 1
         
@@ -370,10 +405,17 @@ class App(ctk.CTk):
         
         main_font = (self.theme['fonts']['main_family'], self.theme['fonts']['main_size'])
 
-        for name in self.config_manager.get_agent_names():
-            agent_data = self.config_manager.get_agent_data(name)
+        for display_name, full_ids in sorted(self.agent_families.items()):
+            if search_term:
+                matches_display_name = search_term in display_name.lower()
+                matches_full_id = any(search_term in full_id.lower() for full_id in full_ids)
+                if not (matches_display_name or matches_full_id):
+                    continue
+
+            latest_id = self._find_latest_version(full_ids)
+            agent_data = self.config_manager.get_agent_data(latest_id)
+
             if agent_data.get("gui", {}).get("hide_in_agent_list", False) and not show_hidden: continue
-            if search_term and search_term not in name.lower(): continue
             
             agent_type = agent_data.get("type", "json")
             prefix = {"workflow": "W", "proc": "P", "template": "T"}.get(agent_type, "J")
@@ -381,26 +423,103 @@ class App(ctk.CTk):
             row = ctk.CTkFrame(self.agent_scroll_frame, fg_color="transparent")
             row.pack(fill="x", padx=2, pady=2)
             
-            del_btn = ctk.CTkButton(row, text="X", width=30, fg_color=self.theme['colors']['error'], command=lambda n=name: self.delete_agent(agent_name=n, confirm=True))
+            del_btn = ctk.CTkButton(row, text="X", width=30, fg_color=self.theme['colors']['error'], command=lambda n=display_name: self.delete_agent(agent_name=n, confirm=True))
             del_btn.pack(side="right")
             
-            btn = ctk.CTkButton(row, text=f"[{prefix}] {name}", anchor="w", font=main_font)
+            btn = ctk.CTkButton(row, text=f"[{prefix}] {display_name}", anchor="w", font=main_font)
             btn.pack(side="left", fill="x", expand=True)
 
             if is_workflow_steps_tab:
                 workflow_editor = self.editor_frame_instance
-                btn.bind("<ButtonPress-1>", lambda e, n=name: workflow_editor._on_agent_drag_start(e, n))
+                # DRAG PAYLOAD IS THE GROUPING KEY (DISPLAY NAME)
+                btn.bind("<ButtonPress-1>", lambda e, n=display_name: workflow_editor._on_agent_drag_start(e, n))
             else:
-                btn.configure(command=lambda n=name: self.on_agent_list_click(n))
+                # REGULAR CLICK ACTION FOR OPENING EDITOR
+                btn.bind("<Button-1>", lambda e, n=display_name: self.on_agent_list_click(n, e))
 
-    def on_agent_list_click(self, agent_name):
-        self.select_agent(agent_name)
+    def on_agent_list_click(self, grouping_key, event):
+        versions = self.agent_families.get(grouping_key, [])
+        if not versions:
+            return
+
+        # If there's only one version AND it's a plain name, open it directly.
+        if len(versions) == 1 and not re.search(r'/v\d+\.\d+$', versions[0]):
+            self.select_agent(versions[0])
+            return
+        
+        # Create and post the version selection menu
+        menu = tk.Menu(self, tearoff=0)
+
+        # Robust sorting key function that handles plain names
+        def version_sort_key(full_id):
+            match = re.search(r'/v(\d+)\.(\d+)$', full_id)
+            if match:
+                return (int(match.group(1)), int(match.group(2)))
+            else:
+                return (-1, -1) # Sort plain names before versioned ones
+
+        sorted_versions = sorted(versions, key=version_sort_key)
+        
+        for version_id in sorted_versions:
+            # Robustly get the display text for the menu item
+            version_match = re.search(r'v\d+\.\d+$', version_id)
+            if version_match:
+                label_text = f"Open {version_match.group(0)}"
+            else:
+                # This handles the plain name case
+                label_text = f"Open '{version_id}'"
+            
+            menu.add_command(label=label_text, command=lambda v=version_id: self.select_agent(v))
+        
+        menu.post(event.x_root, event.y_root)
+
+    def on_agent_list_click_old (self, grouping_key, event):
+        versions = self.agent_families.get(grouping_key, [])
+        if not versions:
+            return
+
+        if len(versions) == 1:
+            self.select_agent(versions[0])
+            return
+        
+        # Create and post the version selection menu
+        menu = tk.Menu(self, tearoff=0)
+
+        # _old
+        #sorted_versions = sorted(versions, key=lambda x: [int(v) for v in re.search(r'v(\d+)\.(\d+)$', x).groups()])
+
+        def version_sort_key(full_id):
+            match = re.search(r'/v(\d+)\.(\d+)$', full_id)
+            if match:
+                # If it's a versioned name, sort by major then minor version number
+                return (int(match.group(1)), int(match.group(2)))
+            else:
+                # If it's a plain name, give it a default low sort priority
+                return (0, 0)
+    
+        sorted_versions = sorted(versions, key=version_sort_key)
+        
+        for version_id in sorted_versions:
+            version_str = re.search(r'v\d+\.\d+$', version_id).group(0)
+            menu.add_command(label=f"Open {version_str}", command=lambda v=version_id: self.select_agent(v))
+        
+        menu.post(event.x_root, event.y_root)
 
     def add_new_agent(self, choice):
-        agent_type = choice.lower(); new_name = self.config_manager.create_new_agent(agent_type)
-        self.config_manager.save(); self.refresh_agent_list(); self.select_agent(new_name)
-    def select_agent(self, agent_name): self.current_agent_name = agent_name; self.build_editor_form()
-
+        agent_type = choice.lower()
+        new_name = self.config_manager.create_new_agent(agent_type)
+        self.config_manager.save()
+        self.refresh_agent_list()
+        self.select_agent(new_name)
+    
+    def select_agent(self, full_identifier):
+        if full_identifier in self.config_manager.get_agent_names():
+            self.current_agent_name = full_identifier
+            self.build_editor_form()
+        else:
+            messagebox.showerror("Error", f"Could not find agent with ID '{full_identifier}'")
+            self.show_welcome_message()
+        
     def show_welcome_message(self):
         if self.editor_frame_instance: self.editor_frame_instance.destroy()
         self.current_agent_name = None; self.editor_frame_instance = None
@@ -423,6 +542,1055 @@ class App(ctk.CTk):
         self.refresh_agent_list()
 
     def save_agent(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None: return
+
+        proposed_new_name = updated_data.pop('name', self.current_agent_name)
+        
+        original_json = json.dumps(original_data, sort_keys=True)
+        updated_json = json.dumps(updated_data, sort_keys=True)
+
+        if original_json == updated_json and proposed_new_name == self.current_agent_name:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message()
+            return
+
+        new_name_is_versioned = bool(re.search(r'/v(\d+)\.(\d+)$', proposed_new_name))
+        old_name_is_versioned = bool(re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name))
+
+        # CASE 1: MIGRATING from a plain name to a versioned name OR just renaming a plain name.
+        if not old_name_is_versioned:
+            if not self.config_manager.rename_agent(self.current_agent_name, proposed_new_name):
+                messagebox.showerror("Error", f"Agent name '{proposed_new_name}' already exists.")
+                return
+            # Now that it's renamed, update its content with the changes from the editor.
+            self.config_manager.update_agent(proposed_new_name, updated_data)
+            self.config_manager.save()
+            toast_message = f"Agent '{self.current_agent_name}' migrated and saved as '{proposed_new_name}'." if new_name_is_versioned else f"Agent '{self.current_agent_name}' renamed to '{proposed_new_name}'."
+            self.show_toast(toast_message)
+            self.show_welcome_message()
+            return
+
+        # CASE 2: UPDATING an existing versioned agent.
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]: is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]: is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]: is_breaking_change = True
+        
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+        self.refresh_agent_list()
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        highest_major, highest_minor_for_major = 0, 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major: highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major, new_minor = highest_major + 1, 0
+            toast_message = f"Breaking change. Saved as new MAJOR v{new_major}.{new_minor}."
+        else:
+            new_major, new_minor = current_major, highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR v{new_major}.{new_minor}."
+
+        base_name_path = self._get_agent_base_name(self.current_agent_name)
+        new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        self.config_manager.update_agent(new_version_id, updated_data)
+        
+        # --- AUTOMATIC PRUNING LOGIC ---
+        pruned_count = 0
+        policy = self.config_manager.config.get("gui_settings", {}).get("version_retention_policy", 999)
+        
+        protected_versions = set()
+        for agent in self.config_manager.config["agents"].values():
+            if agent.get("type") == "workflow":
+                for step in agent.get("steps", []):
+                    if "agent" in step:
+                        protected_versions.add(step["agent"])
+
+        self.refresh_agent_list()
+        pruning_base_name_key = self._get_agent_grouping_key(new_version_id)
+        all_versions_to_consider = self.agent_families.get(pruning_base_name_key, [])
+        
+        versions_by_major = {}
+        for version_id in all_versions_to_consider:
+            v_match = re.search(r'v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major = int(v_match.group(1))
+                if major not in versions_by_major:
+                    versions_by_major[major] = []
+                versions_by_major[major].append(version_id)
+
+        for major_v, version_ids in versions_by_major.items():
+            unprotected_versions = [v for v in version_ids if v not in protected_versions]
+            
+            if len(unprotected_versions) > policy:
+                def sort_key(full_id):
+                    match = re.search(r'v(\d+)\.(\d+)$', full_id)
+                    return int(match.group(2))
+                
+                unprotected_versions.sort(key=sort_key)
+                
+                versions_to_delete = unprotected_versions[:-policy]
+                for v_id in versions_to_delete:
+                    self.config_manager.delete_agent(v_id)
+                    pruned_count += 1
+        
+        if pruned_count > 0:
+            toast_message += f" Pruned {pruned_count} unused version(s)."
+        
+        self.config_manager.save()
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        self.show_welcome_message()
+
+    def save_agent_old(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None:
+            return
+
+        proposed_new_name = updated_data.pop('name', self.current_agent_name)
+        
+        original_json = json.dumps(original_data, sort_keys=True)
+        updated_json = json.dumps(updated_data, sort_keys=True)
+
+        if original_json == updated_json and proposed_new_name == self.current_agent_name:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message()
+            return
+
+        new_name_is_versioned = bool(re.search(r'/v(\d+)\.(\d+)$', proposed_new_name))
+        old_name_is_versioned = bool(re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name))
+
+        if not old_name_is_versioned and not new_name_is_versioned:
+            if proposed_new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, proposed_new_name):
+                    messagebox.showerror("Error", f"Agent name '{proposed_new_name}' already exists.")
+                    return
+                self.current_agent_name = proposed_new_name
+            
+            self.config_manager.update_agent(self.current_agent_name, updated_data)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved.")
+            self.show_welcome_message()
+            return
+        
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]: is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]: is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]: is_breaking_change = True
+        
+        if not old_name_is_versioned and new_name_is_versioned:
+            is_breaking_change = False
+            match = re.search(r'/v(\d+)\.(\d+)$', proposed_new_name)
+            new_major, new_minor = int(match.group(1)), int(match.group(2))
+            toast_message = f"Agent migrated. Saved as v{new_major}.{new_minor}."
+            new_version_id = proposed_new_name
+            self.config_manager.delete_agent(self.current_agent_name)
+        else:
+            match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+            base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+            self.refresh_agent_list()
+            all_versions_for_family = self.agent_families.get(base_name_key, [])
+            
+            highest_major, highest_minor_for_major = 0, 0
+            current_major = int(match.group(1))
+
+            for version_id in all_versions_for_family:
+                v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+                if v_match:
+                    major, minor = int(v_match.group(1)), int(v_match.group(2))
+                    if major > highest_major: highest_major = major
+                    if major == current_major and minor > highest_minor_for_major:
+                        highest_minor_for_major = minor
+
+            if is_breaking_change:
+                new_major, new_minor = highest_major + 1, 0
+                toast_message = f"Breaking change. Saved as new MAJOR v{new_major}.{new_minor}."
+            else:
+                new_major, new_minor = current_major, highest_minor_for_major + 1
+                toast_message = f"Saved as new MINOR v{new_major}.{new_minor}."
+
+            base_name_path = self._get_agent_base_name(self.current_agent_name)
+            new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        self.config_manager.update_agent(new_version_id, updated_data)
+        
+        # --- AUTOMATIC PRUNING LOGIC ---
+        pruned_count = 0
+        policy = self.config_manager.config.get("gui_settings", {}).get("version_retention_policy", 999)
+        
+        protected_versions = set()
+        for agent in self.config_manager.config["agents"].values():
+            if agent.get("type") == "workflow":
+                for step in agent.get("steps", []):
+                    if "agent" in step:
+                        protected_versions.add(step["agent"])
+
+        self.refresh_agent_list()
+        pruning_base_name_key = self._get_agent_grouping_key(new_version_id)
+        all_versions_to_consider = self.agent_families.get(pruning_base_name_key, [])
+        
+        versions_by_major = {}
+        for version_id in all_versions_to_consider:
+            v_match = re.search(r'v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major = int(v_match.group(1))
+                if major not in versions_by_major:
+                    versions_by_major[major] = []
+                versions_by_major[major].append(version_id)
+
+        for major_v, version_ids in versions_by_major.items():
+            unprotected_versions = [v for v in version_ids if v not in protected_versions]
+            
+            if len(unprotected_versions) > policy:
+                def sort_key(full_id):
+                    match = re.search(r'v(\d+)\.(\d+)$', full_id)
+                    return int(match.group(2))
+                
+                unprotected_versions.sort(key=sort_key)
+                
+                versions_to_delete = unprotected_versions[:-policy]
+                for v_id in versions_to_delete:
+                    self.config_manager.delete_agent(v_id)
+                    pruned_count += 1
+        
+        if pruned_count > 0:
+            toast_message += f" Pruned {pruned_count} unused version(s)."
+        # --- END OF PRUNING LOGIC ---
+        
+        self.config_manager.save()
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        self.show_welcome_message()
+
+    def save_agent_10(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None:
+            return
+
+        updated_data_for_comparison = updated_data.copy()
+        updated_data_for_comparison.pop('name', None) 
+        
+        original_json = json.dumps(original_data, sort_keys=True)
+        updated_json = json.dumps(updated_data_for_comparison, sort_keys=True)
+
+        if original_json == updated_json:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message()
+            return
+
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        if not match:
+            # Handle plain-named agents (no versioning, no pruning)
+            new_name = updated_data.pop('name', self.current_agent_name) # This is now correct
+            if not new_name:
+                messagebox.showerror("Error", "Agent name cannot be empty.")
+                return
+            if new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                    messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                    return
+                self.current_agent_name = new_name
+            
+            self.config_manager.update_agent(self.current_agent_name, updated_data_for_comparison)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved (no versioning).")
+            self.show_welcome_message()
+            return
+
+        # --- INTELLIGENT VERSIONING LOGIC ---
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]: is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]: is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]: is_breaking_change = True
+        
+        base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        highest_major, highest_minor_for_major = 0, 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major: highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major, new_minor = highest_major + 1, 0
+            toast_message = f"Breaking change. Saved as new MAJOR v{new_major}.{new_minor}."
+        else:
+            new_major, new_minor = current_major, highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR v{new_major}.{new_minor}."
+
+        base_name_path = re.match(r'^(.*)/v(\d+\.\d+)$', self.current_agent_name).group(1)
+        new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        self.config_manager.update_agent(new_version_id, updated_data_for_comparison)
+        
+        # --- AUTOMATIC PRUNING LOGIC ---
+        pruned_count = 0
+        policy = self.config_manager.config.get("gui_settings", {}).get("version_retention_policy", 999)
+        
+        # 1. Build the "Protected Set" of all versions currently in use
+        protected_versions = set()
+        for agent in self.config_manager.config["agents"].values():
+            if agent.get("type") == "workflow":
+                for step in agent.get("steps", []):
+                    if "agent" in step:
+                        protected_versions.add(step["agent"])
+
+        # 2. Get all versions for the family we just saved
+        # We need to refresh the families dict to include the newly added version
+        self.refresh_agent_list() 
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        # 3. Group them by major version
+        versions_by_major = {}
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major = int(v_match.group(1))
+                if major not in versions_by_major:
+                    versions_by_major[major] = []
+                versions_by_major[major].append(version_id)
+
+        # 4. Iterate and prune each major version branch
+        for major_v, version_ids in versions_by_major.items():
+            unprotected_versions = [v for v in version_ids if v not in protected_versions]
+            
+            if len(unprotected_versions) > policy:
+                # Sort unprotected versions to find the oldest ones
+                def sort_key(full_id):
+                    match = re.search(r'v(\d+)\.(\d+)$', full_id)
+                    return int(match.group(2)) # Sort by minor version
+                
+                unprotected_versions.sort(key=sort_key)
+                
+                versions_to_delete = unprotected_versions[:-policy] # All but the last 'policy' number
+                for v_id in versions_to_delete:
+                    self.config_manager.delete_agent(v_id)
+                    pruned_count += 1
+        
+        if pruned_count > 0:
+            toast_message += f" Pruned {pruned_count} unused version(s)."
+        
+        # --- FINALIZE SAVE AND RELOAD ---
+        self.config_manager.save()
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        self.show_welcome_message()
+
+    def save_agent_9(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None:
+            return
+
+        # --- "NO CHANGES" CHECK (WITH THE FIX) ---
+        original_data_for_comparison = original_data.copy()
+        updated_data_for_comparison = updated_data.copy()
+
+        # THIS IS THE FIX:
+        # The debug output showed that 'original_data' sometimes has a 'name' key
+        # when it shouldn't. We must remove it from BOTH dictionaries before comparing
+        # to ensure a true, apples-to-apples comparison of the agent's definition.
+        original_data_for_comparison.pop('name', None)
+        updated_data_for_comparison.pop('name', None) 
+        
+        original_json = json.dumps(original_data_for_comparison, sort_keys=True)
+        updated_json = json.dumps(updated_data_for_comparison, sort_keys=True)
+
+        if original_json == updated_json:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message()
+            return
+
+        # --- HANDLE PLAIN-NAMED AGENTS (BACKWARD COMPATIBILITY) ---
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        if not match:
+            # NOTE: The name now comes from the editor form data, not a separate pop
+            new_name = updated_data.get('name', self.current_agent_name)
+            if not new_name:
+                messagebox.showerror("Error", "Agent name cannot be empty.")
+                return
+            if new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                    messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                    return
+                self.current_agent_name = new_name
+            
+            # Save the definition part, which is updated_data_for_comparison
+            self.config_manager.update_agent(self.current_agent_name, updated_data_for_comparison)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved (no versioning).")
+            self.show_welcome_message()
+            return
+
+        # --- INTELLIGENT VERSIONING LOGIC ---
+        
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]:
+            is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]:
+            is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]:
+            is_breaking_change = True
+        
+        base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        highest_major = 0
+        highest_minor_for_major = 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major:
+                    highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major = highest_major + 1
+            new_minor = 0
+            toast_message = f"Breaking change detected. Saved as new MAJOR version v{new_major}.{new_minor}."
+        else:
+            new_major = current_major
+            new_minor = highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR version v{new_major}.{new_minor}."
+
+        base_name_path = re.match(r'^(.*)/v(\d+\.\d+)$', self.current_agent_name).group(1)
+        new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        # Save the definition part, which is updated_data_for_comparison
+        self.config_manager.update_agent(new_version_id, updated_data_for_comparison)
+        self.config_manager.save()
+
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        
+        self.show_welcome_message()
+
+    def save_agent_old8(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None:
+            return
+
+        # --- INSTRUMENTATION BLOCK ---
+        updated_data_for_comparison = updated_data.copy()
+        updated_data_for_comparison.pop('name', None) 
+        
+        original_json = json.dumps(original_data, sort_keys=True, indent=2)
+        updated_json = json.dumps(updated_data_for_comparison, sort_keys=True, indent=2)
+
+        print("\n" + "="*40)
+        print("--- DEBUGGING SAVE-AGENT COMPARISON ---")
+        print("="*40)
+        
+        print("\n--- 1. ORIGINAL DATA (from config_manager) ---\n")
+        print(json.dumps(original_data, indent=2))
+        
+        print("\n--- 2. UPDATED DATA (from editor UI) ---\n")
+        print(json.dumps(updated_data_for_comparison, indent=2))
+        
+        print("\n--- 3. CANONICAL JSON OF ORIGINAL ---\n")
+        print(original_json)
+        
+        print("\n--- 4. CANONICAL JSON OF UPDATED ---\n")
+        print(updated_json)
+        
+        print("\n--- 5. COMPARISON RESULT ---")
+        if original_json == updated_json:
+            print("RESULT: IDENTICAL. Should cancel save.")
+        else:
+            print("RESULT: DIFFERENT. Will proceed with save.")
+        
+        print("="*40)
+        print("--- END DEBUGGING ---")
+        print("="*40 + "\n")
+        # --- END INSTRUMENTATION BLOCK ---
+
+        if original_json == updated_json:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message()
+            return
+
+        # --- The rest of the function remains for context ---
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        if not match:
+            new_name = updated_data.pop('name', self.current_agent_name)
+            if not new_name:
+                messagebox.showerror("Error", "Agent name cannot be empty.")
+                return
+            if new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                    messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                    return
+                self.current_agent_name = new_name
+            
+            self.config_manager.update_agent(self.current_agent_name, updated_data)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved (no versioning).")
+            self.show_welcome_message()
+            return
+
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]:
+            is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]:
+            is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]:
+            is_breaking_change = True
+        
+        base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        highest_major = 0
+        highest_minor_for_major = 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major:
+                    highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major = highest_major + 1
+            new_minor = 0
+            toast_message = f"Breaking change detected. Saved as new MAJOR version v{new_major}.{new_minor}."
+        else:
+            new_major = current_major
+            new_minor = highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR version v{new_major}.{new_minor}."
+
+        base_name_path = re.match(r'^(.*)/v(\d+\.\d+)$', self.current_agent_name).group(1)
+        new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        self.config_manager.update_agent(new_version_id, updated_data)
+        self.config_manager.save()
+
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        
+        self.show_welcome_message()
+
+    def save_agent_old7(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        # 1. Get original data DIRECTLY from the config manager.
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        # 2. Get the current data from the UI form.
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None: # Happens on JSON validation error
+            return
+
+        # --- "NO CHANGES" CHECK (ROBUST VERSION) ---
+        # Compare the canonical JSON representation to ignore key order and formatting.
+        updated_data_for_comparison = updated_data.copy()
+        updated_data_for_comparison.pop('name', None) 
+        
+        original_json = json.dumps(original_data, sort_keys=True)
+        updated_json = json.dumps(updated_data_for_comparison, sort_keys=True)
+
+        if original_json == updated_json:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message() # <-- CLOSE EDITOR
+            return
+
+        # --- HANDLE PLAIN-NAMED AGENTS (BACKWARD COMPATIBILITY) ---
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        if not match:
+            new_name = updated_data.pop('name', self.current_agent_name)
+            if not new_name:
+                messagebox.showerror("Error", "Agent name cannot be empty.")
+                return
+            if new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                    messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                    return
+                self.current_agent_name = new_name
+            
+            self.config_manager.update_agent(self.current_agent_name, updated_data)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved (no versioning).")
+            self.show_welcome_message() # <-- CLOSE EDITOR
+            return
+
+        # --- INTELLIGENT VERSIONING LOGIC ---
+        
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]:
+            is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]:
+            is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]:
+            is_breaking_change = True
+        
+        base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        highest_major = 0
+        highest_minor_for_major = 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major:
+                    highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major = highest_major + 1
+            new_minor = 0
+            toast_message = f"Breaking change detected. Saved as new MAJOR version v{new_major}.{new_minor}."
+        else:
+            new_major = current_major
+            new_minor = highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR version v{new_major}.{new_minor}."
+
+        base_name_path = re.match(r'^(.*)/v(\d+\.\d+)$', self.current_agent_name).group(1)
+        new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        self.config_manager.update_agent(new_version_id, updated_data)
+        self.config_manager.save()
+
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        
+        self.show_welcome_message() # <-- CLOSE EDITOR
+
+    def save_agent_old6(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        # 1. Get original data DIRECTLY from the config manager.
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        # 2. Get the current data from the UI form.
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None: # Happens on JSON validation error
+            return
+
+        # --- "NO CHANGES" CHECK ---
+        # The editor's get_data() adds a 'name' key. We must remove it from the
+        # updated data before comparing it to the original, which doesn't have it.
+        updated_data_for_comparison = updated_data.copy()
+        updated_data_for_comparison.pop('name', None) 
+        if original_data == updated_data_for_comparison:
+            self.show_toast("No changes detected. Save cancelled.")
+            # Do NOT close the editor if there were no changes
+            return
+
+        # --- HANDLE PLAIN-NAMED AGENTS (BACKWARD COMPATIBILITY) ---
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        if not match:
+            new_name = updated_data.pop('name', self.current_agent_name)
+            if not new_name:
+                messagebox.showerror("Error", "Agent name cannot be empty.")
+                return
+            if new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                    messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                    return
+                self.current_agent_name = new_name
+            
+            self.config_manager.update_agent(self.current_agent_name, updated_data)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved (no versioning).")
+            self.show_welcome_message() # <-- CLOSE EDITOR
+            return
+
+        # --- INTELLIGENT VERSIONING LOGIC ---
+        
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]:
+            is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]:
+            is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]:
+            is_breaking_change = True
+        
+        base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        highest_major = 0
+        highest_minor_for_major = 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major:
+                    highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major = highest_major + 1
+            new_minor = 0
+            toast_message = f"Breaking change detected. Saved as new MAJOR version v{new_major}.{new_minor}."
+        else:
+            new_major = current_major
+            new_minor = highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR version v{new_major}.{new_minor}."
+
+        base_name_path = re.match(r'^(.*)/v(\d+\.\d+)$', self.current_agent_name).group(1)
+        new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        self.config_manager.update_agent(new_version_id, updated_data)
+        self.config_manager.save()
+
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        
+        # --- CLOSE EDITOR AND SHOW WELCOME SCREEN ---
+        self.show_welcome_message()
+
+    def save_agent_old4 (self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        # --- THIS IS THE CORRECTED LOGIC ---
+        # 1. Get original data DIRECTLY from the config manager. No snapshot needed.
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        if not original_data:
+            messagebox.showerror("Error", "Could not find original agent data to save against.")
+            return
+
+        # 2. Get the current data from the UI form.
+        updated_data = self.editor_frame_instance.get_data()
+        if updated_data is None: # Happens on JSON validation error
+            return
+
+        # 3. "NO CHANGES" CHECK: Compare original data directly to updated data.
+        updated_data_for_comparison = updated_data.copy()
+        updated_data_for_comparison.pop('name', None) 
+        if original_data == updated_data_for_comparison:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message()
+            return
+
+        # 4. HANDLE PLAIN-NAMED AGENTS (BACKWARD COMPATIBILITY)
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        if not match:
+            # It's a plain name, use the old save logic and exit.
+            new_name = updated_data.pop('name', self.current_agent_name)
+            if not new_name:
+                messagebox.showerror("Error", "Agent name cannot be empty.")
+                return
+            if new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                    messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                    return
+                self.current_agent_name = new_name
+            
+            self.config_manager.update_agent(self.current_agent_name, updated_data)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved (no versioning).")
+            self.show_welcome_message()
+            return
+
+        # --- INTELLIGENT VERSIONING LOGIC (NOW STATELESS) ---
+        
+        # 5. Determine if it's a breaking change by comparing live data to original data.
+        original_interface = {
+            "inputs": set(original_data.get("inputs", [])),
+            "optional_inputs": set(original_data.get("optional_inputs", [])),
+            "outputs": set(original_data.get("outputs", []))
+        }
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != original_interface["inputs"]:
+            is_breaking_change = True
+        if current_interface["outputs"] != original_interface["outputs"]:
+            is_breaking_change = True
+        if original_interface["optional_inputs"] - current_interface["optional_inputs"]:
+            is_breaking_change = True
+        
+        # 6. Calculate the new version number (logic is unchanged).
+        base_name_key = self._get_agent_grouping_key(self.current_agent_name)
+        all_versions_for_family = self.agent_families.get(base_name_key, [])
+        
+        highest_major = 0
+        highest_minor_for_major = 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major:
+                    highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major = highest_major + 1
+            new_minor = 0
+            toast_message = f"Breaking change detected. Saved as new MAJOR version v{new_major}.{new_minor}."
+        else:
+            new_major = current_major
+            new_minor = highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR version v{new_major}.{new_minor}."
+
+        base_name_path = re.match(r'^(.*)/v(\d+\.\d+)$', self.current_agent_name).group(1)
+        new_version_id = f"{base_name_path}/v{new_major}.{new_minor}"
+
+        # 7. Save as a new agent and reload.
+        self.config_manager.update_agent(new_version_id, updated_data)
+        self.config_manager.save()
+
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        self.select_agent(new_version_id)
+
+    def save_agent_old2(self):
+        if not self.editor_frame_instance or not self.current_agent_name:
+            return
+
+        # Get a deep copy of the original data to compare for "no changes"
+        original_data = self.config_manager.get_agent_data(self.current_agent_name)
+        updated_data = self.editor_frame_instance.get_data()
+        
+        if updated_data is None: # Happens on JSON validation error
+            return
+
+        # --- "NO CHANGES" CHECK ---
+        # We pop 'name' because get_data() adds it, but it's not in the original stored data.
+        updated_data_for_comparison = updated_data.copy()
+        updated_data_for_comparison.pop('name', None) 
+        if original_data == updated_data_for_comparison:
+            self.show_toast("No changes detected. Save cancelled.")
+            self.show_welcome_message()
+            return
+
+        # --- HANDLE PLAIN-NAMED AGENTS (BACKWARD COMPATIBILITY) ---
+        match = re.search(r'/v(\d+)\.(\d+)$', self.current_agent_name)
+        if not match:
+            # It's a plain name, use the old save logic and exit.
+            new_name = updated_data.pop('name', self.current_agent_name)
+            if not new_name:
+                messagebox.showerror("Error", "Agent name cannot be empty.")
+                return
+            if new_name != self.current_agent_name:
+                if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                    messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                    return
+                self.current_agent_name = new_name
+            
+            self.config_manager.update_agent(self.current_agent_name, updated_data)
+            self.config_manager.save()
+            self.show_toast(f"Agent '{self.current_agent_name}' saved (no versioning).")
+            self.show_welcome_message()
+            return
+
+        # --- INTELLIGENT VERSIONING LOGIC FOR VERSIONED AGENTS ---
+        
+        # 1. Determine if it's a breaking change
+        current_interface = {
+            "inputs": set(updated_data.get("inputs", [])),
+            "optional_inputs": set(updated_data.get("optional_inputs", [])),
+            "outputs": set(updated_data.get("outputs", []))
+        }
+
+        is_breaking_change = False
+        if current_interface["inputs"] != self.initial_interface_snapshot["inputs"]:
+            is_breaking_change = True
+        if current_interface["outputs"] != self.initial_interface_snapshot["outputs"]:
+            is_breaking_change = True
+        # A breaking change is if an optional input was REMOVED.
+        if self.initial_interface_snapshot["optional_inputs"] - current_interface["optional_inputs"]:
+            is_breaking_change = True
+        
+        # 2. Calculate the new version number
+        base_name = self._get_agent_base_name(self.current_agent_name) # e.g., /path/name
+        all_versions_for_family = self.agent_families.get(self._get_agent_grouping_key(base_name), [])
+        
+        highest_major = 0
+        highest_minor_for_major = 0
+        current_major = int(match.group(1))
+
+        for version_id in all_versions_for_family:
+            v_match = re.search(r'/v(\d+)\.(\d+)$', version_id)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if major > highest_major:
+                    highest_major = major
+                if major == current_major and minor > highest_minor_for_major:
+                    highest_minor_for_major = minor
+
+        if is_breaking_change:
+            new_major = highest_major + 1
+            new_minor = 0
+            toast_message = f"Breaking change detected. Saved as new MAJOR version v{new_major}.{new_minor}."
+        else:
+            new_major = current_major
+            new_minor = highest_minor_for_major + 1
+            toast_message = f"Saved as new MINOR version v{new_major}.{new_minor}."
+
+        new_version_id = f"{base_name}/v{new_major}.{new_minor}"
+
+        # 3. Save as a new agent
+        self.config_manager.update_agent(new_version_id, updated_data)
+        self.config_manager.save()
+
+        # 4. Provide feedback and reload
+        self.show_toast(toast_message)
+        self.refresh_agent_list()
+        self.select_agent(new_version_id) # Reload the editor to the new version
+
+    def save_agent_old(self):
         if not self.editor_frame_instance or not self.current_agent_name: return
         updated_data = self.editor_frame_instance.get_data();
         if updated_data is None: return
@@ -430,19 +1598,46 @@ class App(ctk.CTk):
         new_name = updated_data.pop('name', self.current_agent_name)
         if not new_name: messagebox.showerror("Error", "Agent name cannot be empty."); return
         if new_name != self.current_agent_name:
-            if not self.config_manager.rename_agent(self.current_agent_name, new_name): messagebox.showerror("Error", f"Agent name '{new_name}' already exists."); return
+            if not self.config_manager.rename_agent(self.current_agent_name, new_name):
+                messagebox.showerror("Error", f"Agent name '{new_name}' already exists.")
+                return
             self.current_agent_name = new_name
-        self.config_manager.update_agent(self.current_agent_name, updated_data); self.config_manager.save(); self.show_toast(f"Agent '{self.current_agent_name}' saved.")
+        
+        self.config_manager.update_agent(self.current_agent_name, updated_data)
+        self.config_manager.save()
+        self.show_toast(f"Agent '{self.current_agent_name}' saved.")
         self.show_welcome_message()
         
     def delete_agent(self, agent_name=None, confirm=False):
-        name_to_delete = agent_name;
-        if not name_to_delete: return
-        deps = self.config_manager.check_agent_usage(name_to_delete)
-        if deps: messagebox.showerror("Cannot Delete", f"'{name_to_delete}' is used by:\n- " + "\n- ".join(deps)); return
-        if confirm and not messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{name_to_delete}'? This cannot be undone."): return
-        self.config_manager.delete_agent(name_to_delete); self.config_manager.save(); self.refresh_agent_list()
-        if name_to_delete == self.current_agent_name: self.show_welcome_message()
+        grouping_key = agent_name
+        if not grouping_key: return
+
+        ids_to_delete = self.agent_families.get(grouping_key, [])
+        if not ids_to_delete:
+            messagebox.showerror("Error", f"Agent '{grouping_key}' not found.")
+            return
+
+        all_deps = []
+        for full_id in ids_to_delete:
+            deps = self.config_manager.check_agent_usage(full_id)
+            if deps: all_deps.extend(deps)
+        
+        if all_deps:
+            messagebox.showerror("Cannot Delete", f"Cannot delete '{grouping_key}' because one or more of its versions are used by:\n- " + "\n- ".join(set(all_deps)))
+            return
+
+        msg = f"Are you sure you want to delete '{grouping_key}' and all its {len(ids_to_delete)} version(s)? This cannot be undone."
+        if confirm and not messagebox.askyesno("Confirm Delete", msg):
+            return
+        
+        for full_id in ids_to_delete:
+            self.config_manager.delete_agent(full_id)
+        
+        self.config_manager.save()
+        self.refresh_agent_list()
+        
+        if self.current_agent_name in ids_to_delete:
+            self.show_welcome_message()
         
     def open_global_config(self):
         modal = GlobalConfigEditorModal(self, self.config_manager, self.theme); self.wait_window(modal)

@@ -3,6 +3,9 @@
     "max_depth": 30,
     "log_text_limit": 500
   },
+  "gui_settings": {
+    "version_retention_policy": 3
+  },
   "aliases": {
     "hosts": {
       "default": "ollama",
@@ -177,6 +180,893 @@
     }
   },
   "agents": {
+    "/protocol/url/build_google_url_request/v1.0": {
+      "type": "proc",
+      "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query} test",
+      "function": "build_google_url_request",
+      "function_def": "import urllib.parse\nimport inspect\ndef build_google_url_request (request: str, api_key:str, cx: str, output:list,\n    country_code: str = \"\", dateRestrict_d: str = \"\", dateRestrict_w: str = \"\", dateRestrict_m: str = \"\",\n    dateRestrict_y: str = \"\", exactTerms: str = \"\", excludeTerms: str = \"\", fileType: str = \"\", geolocation: str = \"\",\n    imgColorType: str = \"\",imgDominantColor: str = \"\", imgSize: str = \"\", imgType: str = \"\", linkSite: str = \"\", \n    language: str = \"\", lowRange: str = \"\", highRange: str = \"\", num: str = \"\", orTerms: str = \"\", rights: str = \"\",\n    safe: str = \"\", searchType: str = \"\", siteSearch: str = \"\", sort: str = \"\", siteSearchFilterInclude: str = \"\",\n    siteSearchFilterExclude: str = \"\", start: str = \"\") -> tuple[Dict, Dict]:\n\n    headers = (f\"{{\\\"Content-Type\\\": \\\"application/json\\\", \\\"Accept\\\": \\\"application/json\\\", \"\n          f\"\\\"User-Agent\\\": \\\"My Custom Search Client/1.0\\\", \\\"X-Goog-Api-Key\\\": \\\"{api_key}\\\"}}\")\n\n    fixed_request= urllib.parse.quote(request)\n\n    # f\"https://www.googleapis.com/customsearch/v1?q={query}\"\n    url = f\"https://www.googleapis.com/customsearch/v1?q={fixed_request}&cx={cx}\"\n\n    all_params = build_google_url_request.__code__.co_varnames[:build_google_url_request.__code__.co_argcount]\n    num_required = build_google_url_request.__code__.co_argcount - len(build_google_url_request.__defaults__)\n    optional_params = all_params[num_required:]\n\n    # Add optional parameters to URL if they're not empty\n    for param in optional_params:\n        value = locals()[param]\n        if value != \"\":\n            url += f\"&{param}={urllib.parse.quote(str(value))}\"  \n\n    return { \"url\": url, \"headers\": headers } , {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n#adding a comment",
+      "inputs": [
+        "request",
+        "cx",
+        "api_key"
+      ],
+      "optional_inputs": [
+        "country_code",
+        "dateRestrict_d",
+        "dateRestrict_w",
+        "dateRestrict_m",
+        "dateRestrict_y",
+        "exactTerms",
+        "excludeTerms",
+        "fileType",
+        "geolocation",
+        "imgColorType",
+        "imgDominantColor",
+        "imgSize",
+        "imgType",
+        "linkSite",
+        "language",
+        "lowRange",
+        "highRange",
+        "num",
+        "orTerms",
+        "rights",
+        "safe",
+        "searchType",
+        "siteSearch",
+        "sort_results",
+        "siteSearchFilterInclude",
+        "siteSearchFilterExclude",
+        "sort",
+        "start"
+      ],
+      "outputs": [
+        "url",
+        "headers"
+      ],
+      "run_config": {
+        "last_inputs": {
+          "request": "Why is the sky blue?",
+          "cx": "ENV_google_cx",
+          "api_key": "ENV_google_api_key",
+          "num": "5"
+        },
+        "last_log_level": "DEBUG",
+        "test_cases": [
+          {
+            "name": "why is the sky blue?",
+            "notes": "testing google custom search",
+            "date_added": "2025-08-11T19:24:06.917439",
+            "inputs": {
+              "request": "Why is the sky blue?",
+              "cx": "ENV_google_cx",
+              "api_key": "ENV_google_api_key",
+              "num": "5"
+            },
+            "assertions": []
+          }
+        ]
+      },
+      "gui": {
+        "param_hints": {
+          "api_key": {
+            "tooltip": "You need an api key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          },
+          "cx": {
+            "tooltip": "You need a cx key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          }
+        }
+      }
+    },
+    "/protocol/url/build_google_url_request/v1.1": {
+      "type": "proc",
+      "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
+      "function": "build_google_url_request",
+      "function_def": "import urllib.parse\nimport inspect\ndef build_google_url_request (request: str, api_key:str, cx: str, output:list,\n    country_code: str = \"\", dateRestrict_d: str = \"\", dateRestrict_w: str = \"\", dateRestrict_m: str = \"\",\n    dateRestrict_y: str = \"\", exactTerms: str = \"\", excludeTerms: str = \"\", fileType: str = \"\", geolocation: str = \"\",\n    imgColorType: str = \"\",imgDominantColor: str = \"\", imgSize: str = \"\", imgType: str = \"\", linkSite: str = \"\", \n    language: str = \"\", lowRange: str = \"\", highRange: str = \"\", num: str = \"\", orTerms: str = \"\", rights: str = \"\",\n    safe: str = \"\", searchType: str = \"\", siteSearch: str = \"\", sort: str = \"\", siteSearchFilterInclude: str = \"\",\n    siteSearchFilterExclude: str = \"\", start: str = \"\") -> tuple[Dict, Dict]:\n\n    headers = (f\"{{\\\"Content-Type\\\": \\\"application/json\\\", \\\"Accept\\\": \\\"application/json\\\", \"\n          f\"\\\"User-Agent\\\": \\\"My Custom Search Client/1.0\\\", \\\"X-Goog-Api-Key\\\": \\\"{api_key}\\\"}}\")\n\n    fixed_request= urllib.parse.quote(request)\n\n    # f\"https://www.googleapis.com/customsearch/v1?q={query}\"\n    url = f\"https://www.googleapis.com/customsearch/v1?q={fixed_request}&cx={cx}\"\n\n    all_params = build_google_url_request.__code__.co_varnames[:build_google_url_request.__code__.co_argcount]\n    num_required = build_google_url_request.__code__.co_argcount - len(build_google_url_request.__defaults__)\n    optional_params = all_params[num_required:]\n\n    # Add optional parameters to URL if they're not empty\n    for param in optional_params:\n        value = locals()[param]\n        if value != \"\":\n            url += f\"&{param}={urllib.parse.quote(str(value))}\"  \n\n    return { \"url\": url, \"headers\": headers } , {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n#adding a comment",
+      "inputs": [
+        "request",
+        "cx",
+        "api_key"
+      ],
+      "optional_inputs": [
+        "country_code",
+        "dateRestrict_d",
+        "dateRestrict_w",
+        "dateRestrict_m",
+        "dateRestrict_y",
+        "exactTerms",
+        "excludeTerms",
+        "fileType",
+        "geolocation",
+        "imgColorType",
+        "imgDominantColor",
+        "imgSize",
+        "imgType",
+        "linkSite",
+        "language",
+        "lowRange",
+        "highRange",
+        "num",
+        "orTerms",
+        "rights",
+        "safe",
+        "searchType",
+        "siteSearch",
+        "sort_results",
+        "siteSearchFilterInclude",
+        "siteSearchFilterExclude",
+        "sort",
+        "start"
+      ],
+      "outputs": [
+        "url",
+        "headers"
+      ],
+      "run_config": {
+        "last_inputs": {
+          "request": "Why is the sky blue?",
+          "cx": "ENV_google_cx",
+          "api_key": "ENV_google_api_key",
+          "num": "5"
+        },
+        "last_log_level": "DEBUG",
+        "test_cases": [
+          {
+            "name": "why is the sky blue?",
+            "notes": "testing google custom search",
+            "date_added": "2025-08-11T19:24:06.917439",
+            "inputs": {
+              "request": "Why is the sky blue?",
+              "cx": "ENV_google_cx",
+              "api_key": "ENV_google_api_key",
+              "num": "5"
+            },
+            "assertions": []
+          }
+        ]
+      },
+      "gui": {
+        "param_hints": {
+          "api_key": {
+            "tooltip": "You need an api key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          },
+          "cx": {
+            "tooltip": "You need a cx key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
+            "validation": {
+              "type": "string",
+              "regex": "ENV_"
+            }
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v1.0": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "function_name": "$function_name",
+            "input": "$input",
+            "output": "$output",
+            "example_scenario": "$example_scenario"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v2.0": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "function_name": "$function_name",
+            "input": "$input",
+            "output": "$output",
+            "example_scenario": "$example_scenario"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v2.1": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "function_name": "$function_name",
+            "input": "$input",
+            "output": "$output",
+            "example_scenario": "$example_scenario"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v3.10": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.  change3",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario",
+        "test"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "output": "$output",
+            "example_scenario": "$example_scenario",
+            "function_name": "$function_name",
+            "input": "$input"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        },
+        {
+          "agent": "base64_decode",
+          "params": {
+            "data": "$data"
+          },
+          "output": [
+            "decoded_data"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v3.11": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.  change4",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario",
+        "test"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "output": "$output",
+            "example_scenario": "$example_scenario",
+            "function_name": "$function_name",
+            "input": "$input"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        },
+        {
+          "agent": "base64_decode",
+          "params": {
+            "data": "$data"
+          },
+          "output": [
+            "decoded_data"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v3.12": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.  change3",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario",
+        "test"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "output": "$output",
+            "example_scenario": "$example_scenario",
+            "function_name": "$function_name",
+            "input": "$input"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        },
+        {
+          "agent": "base64_decode",
+          "params": {
+            "data": "$data"
+          },
+          "output": [
+            "decoded_data"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v3.6": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario",
+        "test"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "output": "$output",
+            "example_scenario": "$example_scenario",
+            "function_name": "$function_name",
+            "input": "$input"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/template/prompt/agent_writing_agent/v4.0": {
+      "type": "workflow",
+      "help": "Generates a polished essay based on a given topic, thesis, and tone.",
+      "inputs": [
+        "specialization",
+        "function_name",
+        "input",
+        "output",
+        "example_scenario"
+      ],
+      "optional_inputs": [],
+      "outputs": [
+        "new_agent_prompt"
+      ],
+      "prompt": "{prompt}",
+      "steps": [
+        {
+          "agent": "agent_writing_agent_prompt",
+          "params": {
+            "specialization": "$specialization",
+            "output": "$output",
+            "example_scenario": "$example_scenario",
+            "function_name": "$function_name",
+            "input": "$input"
+          },
+          "output": [
+            "agent_template"
+          ]
+        },
+        {
+          "agent": "get_ollama_response",
+          "params": {
+            "prompt": "$agent_template"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        },
+        {
+          "agent": "create_long_ollama_payload",
+          "params": {
+            "prompt": "$prompt",
+            "model": "$model"
+          },
+          "output": [
+            "text_prompt"
+          ]
+        },
+        {
+          "agent": "convert_json_to_results",
+          "params": {
+            "content": "$text_prompt"
+          },
+          "output": [
+            "parts"
+          ]
+        }
+      ],
+      "return_on_fail": 0,
+      "run_config": {
+        "last_inputs": {
+          "specialization": "",
+          "function_name": "",
+          "input": "",
+          "output": "",
+          "example_scenario": ""
+        },
+        "last_log_level": "INFO",
+        "test_cases": []
+      },
+      "gui": {
+        "param_hints": {
+          "function_name": {
+            "tooltip": "test",
+            "example": "test",
+            "widget_type": "preset_selector",
+            "data_source": "GUI.ollama_models"
+          }
+        }
+      }
+    },
+    "/text/edit/append_text/v1.0": {
+      "web_services": [
+        "public_api",
+        "test_add"
+      ],
+      "type": "template",
+      "inputs": [
+        "whole_text",
+        "part_text"
+      ],
+      "outputs": [
+        "whole_text"
+      ],
+      "prompt": "{whole_text}{part_text}",
+      "help": "accumulate the text, like building a chapter by parts.",
+      "run_config": {
+        "last_inputs": {
+          "whole_text": "111111111",
+          "part_text": "2222"
+        },
+        "last_log_level": "INFO",
+        "tests": [
+          {
+            "output_variable": "whole_text",
+            "assertion_type": "Equals",
+            "expected_value": "1111111112222"
+          },
+          {
+            "output_variable": "status.value",
+            "assertion_type": "Equals",
+            "expected_value": "0"
+          }
+        ]
+      },
+      "optional_inputs": []
+    },
     "agent_writing_agent": {
       "type": "workflow",
       "help": "Generates a polished essay based on a given topic, thesis, and tone.",
@@ -325,78 +1215,6 @@
         }
       }
     },
-    "append_text": {
-      "web_services": [
-        "public_api",
-        "test_add"
-      ],
-      "type": "template",
-      "inputs": [
-        "whole_text",
-        "part_text"
-      ],
-      "outputs": [
-        "whole_text"
-      ],
-      "prompt": "{whole_text}{part_text}",
-      "help": "accumulate the text, like building a chapter by parts.",
-      "run_config": {
-        "last_inputs": {
-          "whole_text": "111111111",
-          "part_text": "2222"
-        },
-        "last_log_level": "INFO",
-        "tests": [
-          {
-            "output_variable": "whole_text",
-            "assertion_type": "Equals",
-            "expected_value": "1111111112222"
-          },
-          {
-            "output_variable": "status.value",
-            "assertion_type": "Equals",
-            "expected_value": "0"
-          }
-        ]
-      },
-      "optional_inputs": []
-    },
-    "append_text_1": {
-      "web_services": [
-        "public_api",
-        "test_add"
-      ],
-      "type": "template",
-      "inputs": [
-        "whole_text",
-        "part_text"
-      ],
-      "outputs": [
-        "whole_text"
-      ],
-      "prompt": "{whole_text}{part_text}",
-      "help": "accumulate the text, like building a chapter by parts.",
-      "run_config": {
-        "last_inputs": {
-          "whole_text": "111111111",
-          "part_text": "2222"
-        },
-        "last_log_level": "INFO",
-        "tests": [
-          {
-            "output_variable": "whole_text",
-            "assertion_type": "Equals",
-            "expected_value": "1111111112222"
-          },
-          {
-            "output_variable": "status.value",
-            "assertion_type": "Equals",
-            "expected_value": "0"
-          }
-        ]
-      },
-      "optional_inputs": []
-    },
     "base64_decode": {
       "type": "proc",
       "help": "Decodes base64 data",
@@ -423,95 +1241,9 @@
         "encoded_data"
       ]
     },
-    "build_google_url_request": {
-      "type": "proc",
-      "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
-      "function": "build_google_url_request",
-      "function_def": "import urllib.parse\nimport inspect\ndef build_google_url_request (request: str, api_key:str, cx: str, output:list,\n    country_code: str = \"\", dateRestrict_d: str = \"\", dateRestrict_w: str = \"\", dateRestrict_m: str = \"\",\n    dateRestrict_y: str = \"\", exactTerms: str = \"\", excludeTerms: str = \"\", fileType: str = \"\", geolocation: str = \"\",\n    imgColorType: str = \"\",imgDominantColor: str = \"\", imgSize: str = \"\", imgType: str = \"\", linkSite: str = \"\", \n    language: str = \"\", lowRange: str = \"\", highRange: str = \"\", num: str = \"\", orTerms: str = \"\", rights: str = \"\",\n    safe: str = \"\", searchType: str = \"\", siteSearch: str = \"\", sort: str = \"\", siteSearchFilterInclude: str = \"\",\n    siteSearchFilterExclude: str = \"\", start: str = \"\") -> tuple[Dict, Dict]:\n\n    headers = (f\"{{\\\"Content-Type\\\": \\\"application/json\\\", \\\"Accept\\\": \\\"application/json\\\", \"\n          f\"\\\"User-Agent\\\": \\\"My Custom Search Client/1.0\\\", \\\"X-Goog-Api-Key\\\": \\\"{api_key}\\\"}}\")\n\n    fixed_request= urllib.parse.quote(request)\n\n    # f\"https://www.googleapis.com/customsearch/v1?q={query}\"\n    url = f\"https://www.googleapis.com/customsearch/v1?q={fixed_request}&cx={cx}\"\n\n    all_params = build_google_url_request.__code__.co_varnames[:build_google_url_request.__code__.co_argcount]\n    num_required = build_google_url_request.__code__.co_argcount - len(build_google_url_request.__defaults__)\n    optional_params = all_params[num_required:]\n\n    # Add optional parameters to URL if they're not empty\n    for param in optional_params:\n        value = locals()[param]\n        if value != \"\":\n            url += f\"&{param}={urllib.parse.quote(str(value))}\"  \n\n    return { \"url\": url, \"headers\": headers } , {\"status\": {\"value\": 0, \"reason\": \"Success\"}}\n\n#adding a comment",
-      "inputs": [
-        "request",
-        "cx",
-        "api_key"
-      ],
-      "optional_inputs": [
-        "country_code",
-        "dateRestrict_d",
-        "dateRestrict_w",
-        "dateRestrict_m",
-        "dateRestrict_y",
-        "exactTerms",
-        "excludeTerms",
-        "fileType",
-        "geolocation",
-        "imgColorType",
-        "imgDominantColor",
-        "imgSize",
-        "imgType",
-        "linkSite",
-        "language",
-        "lowRange",
-        "highRange",
-        "num",
-        "orTerms",
-        "rights",
-        "safe",
-        "searchType",
-        "siteSearch",
-        "sort_results",
-        "siteSearchFilterInclude",
-        "siteSearchFilterExclude",
-        "sort",
-        "start"
-      ],
-      "outputs": [
-        "url",
-        "headers"
-      ],
-      "run_config": {
-        "last_inputs": {
-          "request": "Why is the sky blue?",
-          "cx": "ENV_google_cx",
-          "api_key": "ENV_google_api_key",
-          "num": "5"
-        },
-        "last_log_level": "DEBUG",
-        "test_cases": [
-          {
-            "name": "why is the sky blue?",
-            "notes": "testing google custom search",
-            "date_added": "2025-08-11T19:24:06.917439",
-            "inputs": {
-              "request": "Why is the sky blue?",
-              "cx": "ENV_google_cx",
-              "api_key": "ENV_google_api_key",
-              "num": "5"
-            },
-            "assertions": []
-          }
-        ]
-      },
-      "gui": {
-        "param_hints": {
-          "api_key": {
-            "tooltip": "You need an api key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
-            "validation": {
-              "type": "string",
-              "regex": "ENV_"
-            }
-          },
-          "cx": {
-            "tooltip": "You need a cx key from google.  For security use ENV_ replacement to prevent having to save security tokens in your config file.",
-            "validation": {
-              "type": "string",
-              "regex": "ENV_"
-            }
-          }
-        }
-      }
-    },
     "build_url_request": {
       "type": "proc",
-      "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query}",
+      "help": "create url with request https://www.googleapis.com/customsearch/v1?q={query} test",
       "function": "build_url_request",
       "function_def": "import urllib.parse\ndef build_url_request(protocol:str, host:str, endpoint: str, request: str, output:list)->str: \n    # f\"https://www.googleapis.com/customsearch/v1?q={query}\"\n    fixed_request= urllib.parse.quote_plus(request)\n    return f\"{protocol}://{host}/{endpoint}{fixed_request}\", {\"status\": {\"value\": 0, \"reason\": \"Success\"}}",
       "inputs": [
@@ -532,16 +1264,29 @@
           "request": "Why is the sky blue? "
         },
         "last_log_level": "INFO",
-        "tests": [
+        "test_cases": [
           {
-            "output_variable": "url",
-            "assertion_type": "Equals",
-            "expected_value": "htttp://google.com/api/Why+is+the+sky+blue%3F+"
-          },
-          {
-            "output_variable": "status.value",
-            "assertion_type": "Equals",
-            "expected_value": "0"
+            "name": "Imported Legacy Test",
+            "notes": "Automatically migrated from the old single-test format.",
+            "date_added": "2025-08-16T21:17:57.581890",
+            "inputs": {
+              "protocol": "htttp",
+              "host": "google.com",
+              "endpoint": "api/",
+              "request": "Why is the sky blue? "
+            },
+            "assertions": [
+              {
+                "output_variable": "url",
+                "assertion_type": "Equals",
+                "expected_value": "htttp://google.com/api/Why+is+the+sky+blue%3F+"
+              },
+              {
+                "output_variable": "status.value",
+                "assertion_type": "Equals",
+                "expected_value": "0"
+              }
+            ]
           }
         ]
       }
@@ -2020,7 +2765,7 @@
       ],
       "steps": [
         {
-          "agent": "build_google_url_request",
+          "agent": "/protocol/url/build_google_url_request/v1.0",
           "params": {
             "request": "$request",
             "api_key": "ENV_google_custom_search_api_key",
@@ -2765,6 +3510,30 @@
       ],
       "function": "mysql_query",
       "function_def": "import mysql.connector\nimport time\n\ndef mysql_query(hostname: str, username: str, password: str, database: str, sql_command: str, output: list, port: int = 3306, max_retries: int = 3, initial_delay: int = 5) -> tuple:\n    retry_count = 0\n    delay = int(initial_delay)\n    max_retries = int(max_retries)\n\n    while retry_count < max_retries:\n        conn = None\n        try:\n            conn = mysql.connector.connect(\n                host=hostname, user=username, password=password, database=database, port=port, connection_timeout=10\n            )\n            cursor = conn.cursor(dictionary=True)\n            is_select = sql_command.strip().lower().startswith('select')\n            cursor.execute(sql_command)\n            \n            if is_select:\n                result = cursor.fetchall()\n            else:\n                conn.commit()\n                result = cursor.rowcount\n                \n            return result, {'status': {'value': 0, 'reason': 'Success'}}\n\n        except mysql.connector.errors.OperationalError as e:\n            retry_count += 1\n            if retry_count >= max_retries:\n                return [], {'status': {'value': 1, 'reason': f'MySQL connection failed after {max_retries} attempts: {e}'}}\n            time.sleep(delay)\n            delay *= 2\n        \n        except mysql.connector.Error as e:\n            return [], {'status': {'value': 1, 'reason': f'MySQL execution error (non-retryable): {e}'}}\n        \n        finally:\n            if conn and conn.is_connected():\n                if 'cursor' in locals() and cursor and not cursor.is_closed():\n                    cursor.close()\n                conn.close()\n    \n    return [], {'status': {'value': 1, 'reason': f'MySQL query failed after exhausting all {max_retries} retries.'}}"
+    },
+    "new_workflow_1": {
+      "type": "workflow",
+      "help": "",
+      "inputs": [],
+      "optional_inputs": [],
+      "outputs": [],
+      "return_on_fail": 0,
+      "steps": [
+        {
+          "agent": "/template/prompt/agent_writing_agent/v3.6",
+          "params": {
+            "specialization": "$specialization",
+            "function_name": "$function_name",
+            "input": "$input",
+            "output": "$output",
+            "example_scenario": "$example_scenario",
+            "test": "$test"
+          },
+          "output": [
+            "new_agent_prompt"
+          ]
+        }
+      ]
     },
     "oracle_query": {
       "type": "proc",
@@ -3579,7 +4348,7 @@
           ]
         },
         {
-          "agent": "append_text",
+          "agent": "/text/edit/append_text/v1.0",
           "params": {
             "whole_text": "$chapter",
             "part_text": "$chapter_extension"
@@ -3937,7 +4706,7 @@
           ]
         },
         {
-          "agent": "append_text",
+          "agent": "/text/edit/append_text/v1.0",
           "params": {
             "whole_text": "$chapter",
             "part_text": "$chapter_scene"
@@ -4164,7 +4933,7 @@
           ]
         },
         {
-          "agent": "append_text",
+          "agent": "/text/edit/append_text/v1.0",
           "params": {
             "whole_text": "$chapter",
             "part_text": "$scatter_part"
@@ -4198,7 +4967,7 @@
           ]
         },
         {
-          "agent": "append_text",
+          "agent": "/text/edit/append_text/v1.0",
           "params": {
             "whole_text": "$chapter",
             "part_text": "$chapter_scene"
