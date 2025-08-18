@@ -95,6 +95,28 @@ class App(ctk.CTk):
 
         self.focus_set()
 
+    def delete_specific_agent_version(self, agent_full_id):
+        if not agent_full_id: return
+
+        dependents = self.config_manager.check_agent_usage(agent_full_id)
+        if dependents:
+            messagebox.showerror(
+                "Cannot Delete Version",
+                f"Cannot delete '{agent_full_id}' because it is used by:\n\n- " + "\n- ".join(set(dependents))
+            )
+            return
+
+        msg = f"Are you sure you want to delete this specific agent version?\n\n{agent_full_id}\n\nThis cannot be undone."
+        if not messagebox.askyesno("Confirm Delete", msg, parent=self):
+            return
+
+        self.config_manager.delete_agent(agent_full_id)
+        self.config_manager.save()
+
+        self.refresh_agent_list()
+        self.show_welcome_message()
+        self.show_toast(f"Agent version '{agent_full_id}' deleted.")
+
     def _get_major_version_str(self, full_id: str) -> str | None:
         """
         Extracts the major version string (e.g., 'v1', 'v2') from a full ID.
@@ -395,9 +417,6 @@ class App(ctk.CTk):
             row = ctk.CTkFrame(self.agent_scroll_frame, fg_color="transparent")
             row.pack(fill="x", padx=2, pady=2)
             
-            del_btn = ctk.CTkButton(row, text="X", width=30, fg_color=self.theme['colors']['error'], command=lambda n=display_name: self.delete_agent(agent_name=n, confirm=True))
-            del_btn.pack(side="right")
-            
             btn = ctk.CTkButton(row, text=f"[{prefix}] {display_name}", anchor="w", font=main_font)
             btn.pack(side="left", fill="x", expand=True)
 
@@ -611,37 +630,6 @@ class App(ctk.CTk):
         self.refresh_agent_list()
         self.show_welcome_message()
 
-    def delete_agent(self, agent_name=None, confirm=False):
-        grouping_key = agent_name
-        if not grouping_key: return
-
-        ids_to_delete = self.agent_families.get(grouping_key, [])
-        if not ids_to_delete:
-            messagebox.showerror("Error", f"Agent '{grouping_key}' not found.")
-            return
-
-        all_deps = []
-        for full_id in ids_to_delete:
-            deps = self.config_manager.check_agent_usage(full_id)
-            if deps: all_deps.extend(deps)
-        
-        if all_deps:
-            messagebox.showerror("Cannot Delete", f"Cannot delete '{grouping_key}' because one or more of its versions are used by:\n- " + "\n- ".join(set(all_deps)))
-            return
-
-        msg = f"Are you sure you want to delete '{grouping_key}' and all its {len(ids_to_delete)} version(s)? This cannot be undone."
-        if confirm and not messagebox.askyesno("Confirm Delete", msg):
-            return
-        
-        for full_id in ids_to_delete:
-            self.config_manager.delete_agent(full_id)
-        
-        self.config_manager.save()
-        self.refresh_agent_list()
-        
-        if self.current_agent_name in ids_to_delete:
-            self.show_welcome_message()
-        
     def open_global_config(self):
         modal = GlobalConfigEditorModal(self, self.config_manager, self.theme); self.wait_window(modal)
         if modal.saved: self.config_manager.save(); self.show_toast("Global configuration saved successfully!")

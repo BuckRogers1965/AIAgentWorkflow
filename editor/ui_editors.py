@@ -627,6 +627,9 @@ class ProcEditorFrame(BaseEditorFrame):
         copy_button = ctk.CTkButton(tab, text="Copy Agent Definition to Clipboard", command=self.copy_agent_definition_to_clipboard)
         copy_button.pack(fill="x", padx=10, pady=(15, 5))
 
+        delete_button = ctk.CTkButton(tab, text="Delete This Agent Version", command=lambda: self.app_ref.delete_specific_agent_version(self.agent_name), fg_color=self.theme['colors']['error'])
+        delete_button.pack(fill="x", padx=10, pady=5)
+
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
         tab.grid_rowconfigure(0, weight=1); tab.grid_columnconfigure(0, weight=1)
@@ -752,6 +755,9 @@ class TemplateEditorFrame(BaseEditorFrame):
 
         copy_button = ctk.CTkButton(tab, text="Copy Agent Definition to Clipboard", command=self.copy_agent_definition_to_clipboard)
         copy_button.pack(fill="x", padx=10, pady=(15, 5))
+
+        delete_button = ctk.CTkButton(tab, text="Delete This Agent Version", command=lambda: self.app_ref.delete_specific_agent_version(self.agent_name), fg_color=self.theme['colors']['error'])
+        delete_button.pack(fill="x", padx=10, pady=5)
 
     def create_gui_hints_tab(self, tab):
         tab.configure(fg_color=self.theme['colors']['bg_secondary'])
