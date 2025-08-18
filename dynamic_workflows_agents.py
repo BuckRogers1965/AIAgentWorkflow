@@ -131,7 +131,7 @@ def exec_proc_agent(function_name: str, version_suffix: str, step_params: Dict[s
         force_recompile: bool = False, jail_config: Dict[str, Any] = None
         )-> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
     spacing = depth_manager.get_spacing()
-    logging.info("%sStarting %s" % (spacing, function_name))
+    logging.info("%sStarting %s%s" % (spacing, function_name, version_suffix))
     logging.debug("%s******** \n step_params%s" % (spacing, step_params))
 
     result = b''

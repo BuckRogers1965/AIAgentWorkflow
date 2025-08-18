@@ -1,3 +1,5 @@
+# --- START OF FILE ui_step_editor.py ---
+
 import customtkinter as ctk
 import copy
 import re
@@ -24,6 +26,24 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         self.literal_border_color = self.get_theme_color('accent_primary', '#0078D4')
         dummy_entry.destroy()
 
+        # --- NEW: Logic to find sibling versions ---
+        self.sibling_versions = []
+        self.current_agent_name = self.editing_data.get('agent', '')
+        
+        version_match = re.match(r'^(.*)/v(\d+)\.\d+$', self.current_agent_name)
+        if version_match:
+            base_path = version_match.group(1)
+            major_version = version_match.group(2)
+            
+            all_agents = self.app_ref.config_manager.get_agent_names()
+            
+            for agent_name in all_agents:
+                if agent_name.startswith(f"{base_path}/v{major_version}."):
+                    self.sibling_versions.append(agent_name)
+            
+            self.sibling_versions.sort(key=lambda v: [int(x) for x in re.search(r'v(\d+)\.(\d+)$', v).groups()])
+        # --- END NEW ---
+
         self.calculate_available_variables()
         self.saved = False
         self.param_entries = {}
@@ -37,31 +57,25 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         self.transient(parent)
         self.grab_set()
 
-
-    def save(self):
-        self.get_form_data()
-        self.saved = True
-        self.destroy()
-
-    def cancel(self):
-        self.saved = False
-        self.destroy()
-
-    def get_result(self):
-        return self.editing_data
-
-    def _get_param_font(self):
-        """Helper method for PresetSelectorMixin"""
-        return ctk.CTkFont(
-            family=self.get_theme_font('editor_step_param', ('Courier', 12))[0],
-            size=self.get_theme_font('editor_step_param', ('Courier', 12))[1]
-        )
-
-    def _get_entry_bg_color(self):
-        """Helper method for PresetSelectorMixin"""
-        return self.get_theme_color('editor_step_param_bg', 'transparent')
-
     def create_widgets(self):
+        # --- START of logic to find sibling versions ---
+        sibling_versions = []
+        current_agent_name = self.editing_data.get('agent', '')
+        
+        version_match = re.match(r'^(.*)/v(\d+)\.\d+$', current_agent_name)
+        if version_match:
+            base_path = version_match.group(1)
+            major_version = version_match.group(2)
+            
+            all_agents = self.app_ref.config_manager.get_agent_names()
+            
+            for agent_name in all_agents:
+                if agent_name.startswith(f"{base_path}/v{major_version}."):
+                    sibling_versions.append(agent_name)
+            
+            sibling_versions.sort(key=lambda v: [int(x) for x in re.search(r'v(\d+)\.(\d+)$', v).groups()])
+        # --- END of logic ---
+
         self.configure(fg_color=self.get_theme_color('bg_primary', '#242424'))
         
         selector_frame = ctk.CTkFrame(self, width=300, fg_color=self.get_theme_color('bg_secondary', '#2B2B2B'))
@@ -81,11 +95,26 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         
         form = ctk.CTkFrame(self, fg_color=self.get_theme_color('bg_secondary', '#2B2B2B'))
         form.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
-        form.grid_rowconfigure(0, weight=1)
+        form.grid_rowconfigure(1, weight=1)
         form.grid_columnconfigure(0, weight=1)
         
+        form_header = ctk.CTkFrame(form, fg_color="transparent")
+        form_header.grid(row=0, column=0, sticky="ew", padx=5, pady=(5,0))
+
+        if sibling_versions:
+            ctk.CTkLabel(form_header, text="Version:").pack(side="left", padx=(0, 5))
+            # Create a StringVar to hold the dropdown's current value
+            self.agent_version_var = ctk.StringVar(value=current_agent_name)
+            self.version_menu = ctk.CTkOptionMenu(
+                form_header,
+                values=sibling_versions,
+                variable=self.agent_version_var
+                # NO 'command' ATTRIBUTE
+            )
+            self.version_menu.pack(side="left")
+        
         self.params_frame = ctk.CTkScrollableFrame(form, label_text="Parameters & Outputs")
-        self.params_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        self.params_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
 
         button_frame = ctk.CTkFrame(self, fg_color="transparent")
         button_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
@@ -96,7 +125,55 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         self.populate_variable_selector()
         self.refresh_params_form()
 
-# In ui_step_editor.py -> inside class StepEditorModal
+    def on_version_change(self, new_version_name: str):
+        """Callback when a new version is selected from the dropdown."""
+        if new_version_name == self.current_agent_name:
+            return
+
+        from tkinter import messagebox
+        if not messagebox.askyesno("Change Version?", f"Change this step to use version '{new_version_name}'?\n\nThis will reset the parameters below to match the new version's definition."):
+            self.version_menu.set(self.current_agent_name) # Revert dropdown
+            return
+
+        self.current_agent_name = new_version_name
+        self.editing_data['agent'] = new_version_name
+
+        new_agent_def = self.app_ref.config_manager.get_agent_data(new_version_name)
+        if not new_agent_def:
+            messagebox.showerror("Error", f"Could not load definition for {new_version_name}")
+            return
+
+        self.agent_def = new_agent_def
+        
+        # Reset params and outputs to the new agent's defaults
+        self.editing_data['params'] = {key: f"${key}" for key in self.agent_def.get("inputs", [])}
+        self.editing_data['output'] = self.agent_def.get("outputs", []).copy()
+        
+        self.title(f"Edit Step {self.step_index}: {new_version_name}")
+        self.refresh_params_form()
+
+    # --- NO OTHER CHANGES ARE NEEDED BELOW THIS LINE ---
+
+    def save(self):
+        self.get_form_data()
+        self.saved = True
+        self.destroy()
+
+    def cancel(self):
+        self.saved = False
+        self.destroy()
+
+    def get_result(self):
+        return self.editing_data
+
+    def _get_param_font(self):
+        return ctk.CTkFont(
+            family=self.get_theme_font('editor_step_param', ('Courier', 12))[0],
+            size=self.get_theme_font('editor_step_param', ('Courier', 12))[1]
+        )
+
+    def _get_entry_bg_color(self):
+        return self.get_theme_color('editor_step_param_bg', 'transparent')
 
     def refresh_params_form(self):
         for widget in self.params_frame.winfo_children(): 
@@ -125,7 +202,6 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             else:
                 self.create_standard_param_widget(parent, key, value, hint)
 
-        # --- 1. Outputs section (Original Logic) ---
         ctk.CTkLabel(self.params_frame, text="Outputs", font=label_font).pack(anchor="w", padx=5)
         for i, item in enumerate(self.editing_data['output']):
             param_font = self._get_param_font()
@@ -136,7 +212,6 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             entry.bind("<FocusIn>", lambda event, entry=entry: self.set_active_entry(entry))
             self.param_entries[f'output_{i}'] = entry
 
-        # --- 2. Required parameters section (Original Logic) ---
         if required_inputs:
             ctk.CTkLabel(self.params_frame, text="Required Parameters", 
                         font=label_font).pack(anchor="w", padx=5, pady=(15, 0))
@@ -147,10 +222,6 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             param_frame.pack(fill="x", pady=2, padx=5)
             create_param_widget(param_frame, key, self.editing_data["params"].get(key, ""))
         
-        # --- 3. Optional, Custom, and Orphaned Parameters ---
-        
-        # *** THE ONLY NEW SECTION ***
-        # First, identify and render orphaned keys separately.
         all_step_param_keys = set(self.editing_data["params"].keys())
         orphaned_keys = all_step_param_keys - all_defined_inputs
         if orphaned_keys:
@@ -175,9 +246,7 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
                                          fg_color=self.get_theme_color('error', 'red'), 
                                          command=lambda k=key: self.remove_param(k))
                 remove_btn.pack(side="left", padx=5)
-        # *** END OF NEW SECTION ***
 
-        # --- 4. Optional and Custom Parameters (Original Logic) ---
         optional_and_custom_keys = set(self.editing_data["params"].keys()) - required_inputs - orphaned_keys
         if optional_and_custom_keys:
             ctk.CTkLabel(self.params_frame, text="Optional / Custom Parameters", 
@@ -208,7 +277,6 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
                                      command=lambda k=key: self.remove_param(k))
             remove_btn.pack(side="left", padx=5)
         
-        # --- 5. Add Optional Parameter Dropdown (Original Logic) ---
         available_options = sorted(list(optional_inputs - set(self.editing_data["params"].keys())))
         if available_options:
             option_menu = ctk.CTkOptionMenu(self.params_frame, 
@@ -218,7 +286,6 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
 
     def create_standard_param_widget(self, parent, key, value, hint):
         param_font = self._get_param_font()
-        # Only add label if this is a new parameter widget (no existing label)
         if not (parent.winfo_children() and isinstance(parent.winfo_children()[0], ctk.CTkLabel)):
             ctk.CTkLabel(parent, text=key, width=200, font=param_font).pack(side="left")
 
@@ -233,7 +300,6 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
 
     def create_preset_selector_param_widget(self, parent, key, value, hint):
         param_font = self._get_param_font()
-        # Only add label if this is a new parameter widget (no existing label)
         if not (parent.winfo_children() and isinstance(parent.winfo_children()[0], ctk.CTkLabel)):
             ctk.CTkLabel(parent, text=key, width=200, font=param_font).pack(side="left")
         
@@ -290,44 +356,26 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             for output_var in step.get('output', []): 
                 self.available_vars.add(output_var)
 
-
     def validate_entry_variables(self, entry_widget):
         text = entry_widget.get()
-
         found_vars = re.findall(r'\$(\w+)', text)
-
-        # If text starts with $, it must be a valid variable reference
         if text.startswith('$'):
             if not found_vars:
                 entry_widget.configure(border_color="red", border_width=2)
                 return
-            
             is_valid = all(var in self.available_vars for var in found_vars)
-            entry_widget.configure(
-                border_color="red" if not is_valid else self.default_border_color,
-                border_width=2 if not is_valid else 1
-            )
+            entry_widget.configure(border_color="red" if not is_valid else self.default_border_color, border_width=2 if not is_valid else 1)
             return
-
-
-        # Let the hint validation handle the border color if it exists
         for key, widget in self.param_entries.items():
             if widget == entry_widget:
                 param_key = key.replace("param_val_", "").replace("output_", "")
                 param_hints = self.agent_def.get("gui", {}).get("param_hints", {})
                 if param_key in param_hints and "validation" in param_hints[param_key]:
-                    # Use the mixin's validation method with available variables
-                    self.validate_entry_with_feedback(param_key, entry_widget, 
-                                                    param_hints[param_key], self.available_vars)
+                    self.validate_entry_with_feedback(param_key, entry_widget, param_hints[param_key], self.available_vars)
                     return
-
-
-        # Standard validation for fields without validation hints
         if not text:
             entry_widget.configure(border_color=self.default_border_color, border_width=1)
             return
-        
-        # If we get here, it's a literal value - show blue border
         entry_widget.configure(border_color=self.literal_border_color, border_width=2)
 
     def set_active_entry(self, entry_widget):
@@ -337,38 +385,25 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         if self.active_entry:
             cursor_pos = self.active_entry.index(ctk.INSERT)
             current_text = self.active_entry.get()
-            
-            # Smart spacing: add space if needed
-            if (cursor_pos > 0 and current_text and 
-                current_text[cursor_pos-1] not in (' ', '(')):
+            if (cursor_pos > 0 and current_text and current_text[cursor_pos-1] not in (' ', '(')):
                 variable_string = f" ${var_name}"
             else:
                 variable_string = f"${var_name}"
-                
             self.active_entry.insert(cursor_pos, variable_string)
             self.active_entry.focus()
             self.validate_entry_variables(self.active_entry)
 
     def populate_variable_selector(self):
         def create_var_button(parent, var_name):
-            btn = ctk.CTkButton(parent, text=var_name, anchor="w", fg_color="gray", 
-                              command=lambda v=var_name: self.append_variable_to_active_entry(v))
+            btn = ctk.CTkButton(parent, text=var_name, anchor="w", fg_color="gray", command=lambda v=var_name: self.append_variable_to_active_entry(v))
             btn.pack(fill="x", padx=5, pady=2)
-
-        # Workflow required inputs
         for var in sorted(list(self.parent_workflow_data.get('inputs', []))): 
             create_var_button(self.wf_req_inputs_frame, var)
-            
-        # Workflow optional inputs
         for var in sorted(list(self.parent_workflow_data.get('optional_inputs', []))): 
             create_var_button(self.wf_opt_inputs_frame, var)
-        
-        # Step outputs from previous steps
         for i in range(self.step_index):
             step = self.parent_workflow_data['steps'][i]
-            ctk.CTkLabel(self.step_outputs_frame, 
-                        text=f"Step {i}: {step.get('agent', 'Unknown')}", 
-                        font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(8, 2), padx=5)
+            ctk.CTkLabel(self.step_outputs_frame, text=f"Step {i}: {step.get('agent', 'Unknown')}", font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(8, 2), padx=5)
             for output_var in step.get('output', []):
                 create_var_button(self.step_outputs_frame, output_var)
 
@@ -378,12 +413,15 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
             self.refresh_params_form()
 
     def remove_param(self, key):
-        if (key in self.editing_data.get("params", {}) and 
-            key not in set(self.agent_def.get("inputs", []))):
+        if (key in self.editing_data.get("params", {}) and key not in set(self.agent_def.get("inputs", []))):
             del self.editing_data["params"][key]
         self.refresh_params_form()
-        
+
     def get_form_data(self):
+        # Update the agent name from the dropdown if it exists
+        if hasattr(self, 'agent_version_var'):
+            self.editing_data['agent'] = self.agent_version_var.get()
+
         # Update output data
         self.editing_data['output'] = [
             self.param_entries[f'output_{i}'].get() 
@@ -399,7 +437,6 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
         }
         
         for key_ref in all_rendered_keys:
-            # Get the actual key name (may have been edited for custom params)
             if f'param_key_{key_ref}' in self.param_entries:
                 new_key = self.param_entries[f'param_key_{key_ref}'].get()
             else:
@@ -409,15 +446,3 @@ class StepEditorModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, The
                 new_params[new_key] = self.param_entries[f'param_val_{key_ref}'].get()
                 
         self.editing_data['params'] = new_params
-        
-    def save(self):
-        self.get_form_data()
-        self.saved = True
-        self.destroy()
-
-    def cancel(self):
-        self.saved = False
-        self.destroy()
-
-    def get_result(self):
-        return self.editing_data
