@@ -127,7 +127,7 @@ jail_output = output
         result, status = b'', jail_output['status']
     return result, status
 
-def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_def: str, 
+def exec_proc_agent(function_name: str, version_suffix: str, step_params: Dict[str, Any], function_def: str, 
         force_recompile: bool = False, jail_config: Dict[str, Any] = None
         )-> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
     spacing = depth_manager.get_spacing()
@@ -140,6 +140,10 @@ def exec_proc_agent(function_name: str, step_params: Dict[str, Any], function_de
     try:
         updated_step_params = replace_envs(step_params) if needs_updated(step_params) else step_params
         if jail_config is None:
+            #version the cached function name to stop collesions with other agents of the same name
+            versioned_function_name = function_name + version_suffix
+            function_def = re.sub(r'def\s+' + function_name, f'def {versioned_function_name}', function_def, 1)
+            function_name = versioned_function_name
             if force_recompile or function_name not in _proc_agent_namespace:
                 if force_recompile:
                     logging.info("%sForce recompile requested for function %s" % (spacing, function_name))
@@ -286,10 +290,23 @@ def prepare_for_steps(workflow, results):
     results['step_index'] = 0  # Initialize step_index in results to give access to steps to control which step to execute next
     results['step_max'] = len(steps)
     return steps
+
 def process_vars (steps, config, cli_args, results):
     step = steps[results['step_index']]
-    agent_name = step['agent']
-    agent_config = config['agents'][agent_name]
+    full_agent_name = step['agent']
+    agent_config = config['agents'][full_agent_name]
+    
+    # Extract version suffix and clean agent name
+    version_match = re.search(r'^(.*)/([^/]+)/v(\d+)\.(\d+)$', full_agent_name)
+    if version_match:
+        clean_agent_name = version_match.group(2)
+        major = version_match.group(3)
+        minor = version_match.group(4)
+        version_suffix = f"_v{major}_{minor}"
+    else:
+        clean_agent_name = full_agent_name
+        version_suffix = ""
+
     # Build scoped parameters
     scoped_params = build_scoped_params(step.get('params', {}), cli_args, results)
     # Add step_index to scoped_params
@@ -297,10 +314,12 @@ def process_vars (steps, config, cli_args, results):
     # Process step parameters
     step_params = process_step_params(step.get('params', {}), scoped_params)
     # Add the output parameter to step_params
-    # so they can be seen in the proc to know what names to map when there are multiple results from one step. 
+    # so they can be seen in the proc to know what names to map when there are multiple results from one step.
     if 'output' in step:
         step_params['output'] = step['output']
-    return step, agent_name, agent_config, scoped_params, step_params
+        
+    return step, clean_agent_name, agent_config, scoped_params, step_params, version_suffix
+
 def handle_results(results, result, outvar):
     spacing = depth_manager.get_spacing()
     #pdb.set_trace()
@@ -451,14 +470,14 @@ def exec_workflow(workflow: Dict[str, Any], config: Dict[str, Any], cli_args: Di
         steps = prepare_for_steps(workflow, results)
         while results['step_index'] < len(steps):
             start_time = time.perf_counter()
-            step, agent_name, agent_config, scoped_params, step_params = process_vars(steps, config, cli_args, results)
-            logging.info(f"{spacing}Executing step: {agent_name}, type : {agent_config['type']}")
+            step, agent_name, agent_config, scoped_params, step_params, version_suffix = process_vars(steps, config, cli_args, results)
+            logging.info(f"{spacing}Executing step: {agent_name}, ver. {version_suffix}  type : {agent_config['type']}")
  
             try:
                 if agent_config['type'] == 'template':
                     result, status = build_template(agent_config.get('prompt', ''), scoped_params)
                 elif agent_config['type'] == 'proc':
-                    result, status = exec_proc_agent(agent_config['function'], step_params, agent_config['function_def'], 
+                    result, status = exec_proc_agent(agent_config['function'], version_suffix, step_params, agent_config['function_def'], 
                                     force_recompile, jail_config)  
                 elif agent_config['type'] == 'workflow':
                     nested_cli_args, nested_workflow = get_nested_args (step, scoped_params, spacing, agent_name, config, cli_args)
@@ -539,6 +558,7 @@ def create_temp_workflow(agent_name, agent_config, cli_args):
             temp_workflow['inputs'].append(opt_input)
             # Add to steps params
             temp_workflow['steps'][0]['params'][opt_input] = f"${opt_input}"
+    #print (temp_workflow)
     return temp_workflow
 def load_config(default_file_path: str) -> Dict[str, Any]:
     logging.info(f"Starting config load")

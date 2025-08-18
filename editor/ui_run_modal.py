@@ -550,22 +550,37 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
         
         TestResultsModal(self, results, self.theme)
 
+
     def evaluate_assertion(self, assertion, final_result_tape, final_status):
         try:
             output_var = assertion.get("output_variable", "")
             assertion_type = assertion.get("assertion_type", "Equals")
             expected_value = assertion.get("expected_value", "")
-            
+
             if output_var == 'status.value': actual_value = final_status.get('status', {}).get('value')
             else: actual_value = get_nested(final_result_tape, output_var)
-            
+
             if actual_value is None: return False
-            
-            actual_str, expected_str = str(actual_value), str(expected_value)
-            
-            if assertion_type == "Equals": return actual_str == expected_str
-            if assertion_type == "Regex Match": return bool(re.search(expected_str, actual_str))
-            
+
+            if isinstance(actual_value, (dict, list)):
+                # Use canonical, compact JSON for structured types
+                actual_str = json.dumps(actual_value, separators=(',', ':'))
+            else:
+                # Use standard string conversion for simple types
+                actual_str = str(actual_value)
+
+            expected_str = str(expected_value)
+
+            if assertion_type == "Equals":
+                # Normalize both strings by removing all whitespace before comparing
+                normalized_actual = ''.join(actual_str.split())
+                normalized_expected = ''.join(expected_str.split())
+                return normalized_actual == normalized_expected
+
+            if assertion_type == "Regex Match":
+                return bool(re.search(expected_str, actual_str))
+
+
             return False
         except:
             return False
