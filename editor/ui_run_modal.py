@@ -332,6 +332,8 @@ class RunAgentModal(ctk.CTkToplevel, ValidationMixin, PresetSelectorMixin, Theme
         self.log_textbox.delete("1.0", "end")
         self.log_textbox.insert("1.0", log)
         self.log_textbox.configure(state="disabled")
+
+        self.winfo_children()[0].winfo_children()[1].set("Last Run Output")
         
     def run_agent_with_inputs(self, inputs, run_name="Test"):
         if not self.core_lib: return {}, {}, "Core engine not loaded."
