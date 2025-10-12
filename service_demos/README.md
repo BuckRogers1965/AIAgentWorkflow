@@ -4,15 +4,40 @@ This directory contains examples and fully-functional services that demonstrate 
 
 While the core engine can be used for single, command-line tasks, its true power is realized when it's integrated into a service-oriented architecture. The examples here provide the blueprints for doing just that.
 
-## `server_demo.py`
+## `flask_web_service.py` (HTTP Service)
 
-A simple demonstration of how to wrap the core `exec_agent` function in a basic web server (e.g., using Flask or FastAPI). This shows how you could expose your entire library of agents as a private or public API.
+A web service that exposes agents via a standard REST-like HTTP API. This is ideal for web front-ends, standard integrations, and simple-to-use endpoints.
 
 **To Run:**
 ```bash
 # (Install requirements first, e.g., pip install flask)
-python server_demo.py
+python flask_web_service.py --lib-path .. --config ../config.json --port 5000 --service public_api
 ```
+
+## `mcp_service.py` (TCP Service)
+
+A high-performance TCP socket server that exposes agents via a custom JSON-based protocol (Multi-Client Protocol). This is ideal for machine-to-machine communication, high-throughput scenarios, or integration with services where HTTP overhead is undesirable.
+
+**To Run the Server:**
+```bash
+# From the service_demos/ directory
+python mcp_service.py --lib-path .. --config ../config.json --port 5001 --service public_api
+```
+
+**To Use the Demo Client (`mcp_client_demo.py`):**
+This client sends a single JSON request to the server and prints the response.
+
+1.  **List available agents:**
+    ```bash
+    python mcp_client_demo.py --request '{"command": "LIST_AGENTS"}'
+    ```
+
+2.  **Execute an agent:**
+    ```bash
+    python mcp_client_demo.py --request '{"command": "EXECUTE_AGENT", "agent": "append_text", "params": {"whole_text": "Hello, ", "part_text": "MCP!"}}'
+    ```
+
+
 
 ## The `queue/` Directory: An Advanced Job Dispatcher Service
 

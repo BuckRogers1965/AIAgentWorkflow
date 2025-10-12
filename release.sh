@@ -55,6 +55,8 @@ zip -9 "releases/$ARCHIVE_NAME" \
     editor/themes.json \
     editor/README.md \
     service_demos/flask_web_service.py \
+    service_demos/mcp_client_demo.py \
+    service_demos/mcp_service.py \
     service_demos/README.md \
     unit_testing/*.py \
     unit_testing/README.md \
