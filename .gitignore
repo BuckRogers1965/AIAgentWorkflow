@@ -2,6 +2,8 @@
 .DS_Store
 ._*
 
+GEMINI.md
+
 # extra testing files
 unit_testing/Test-Report-*
 unit_testing/hello.world2
