@@ -37,6 +37,41 @@ This client sends a single JSON request to the server and prints the response.
     python mcp_client_demo.py --request '{"command": "EXECUTE_AGENT", "agent": "append_text", "params": {"whole_text": "Hello, ", "part_text": "MCP!"}}'
     ```
 
+## `fast_api_service.py` (Standard HTTP/REST Service)
+
+A modern, high-performance HTTP/REST API service built with FastAPI. This service exposes agents via a standard RESTful interface, making it ideal for integration with web front-ends, other AI services, and general-purpose HTTP clients.
+
+**Prerequisites:**
+Install the required packages:
+```bash
+pip install -r fast_api_requirements.txt
+```
+
+**To Run the Server:**
+```bash
+# From the service_demos/ directory
+python fast_api_service.py --lib-path .. --config ../config.json --port 8000 --service public_api
+```
+
+*   The service will be available at `http://127.0.0.1:8000` (or your specified host/port).
+*   Interactive API documentation (Swagger UI) is automatically generated and available at `http://127.0.0.1:8000/docs`.
+
+**To Use the Demo Client (`fast_api_client.py`):**
+This client provides command-line access to list and execute agents on the FastAPI service.
+
+1.  **List available agents:**
+    ```bash
+    python fast_api_client.py list
+    ```
+
+2.  **Execute an agent:**
+    ```bash
+    python fast_api_client.py execute <agent_name> --params '{"param1": "value1", "param2": "value2"}'
+    ```
+    Example:
+    ```bash
+    python fast_api_client.py execute /text/edit/append_text/v1.0 --params '{"whole_text": "Hello, ", "part_text": "FastAPI!"}'
+    ```
 
 
 ## The `queue/` Directory: An Advanced Job Dispatcher Service
