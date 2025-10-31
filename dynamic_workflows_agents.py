@@ -1,12 +1,5 @@
 #!/home/jrogers/Documents/ai/chat/ragserver/venv/bin/python3
 
-#from html.parser import HTMLParser
-#import urllib.parse
-#import socket
-#import requests
-#import lxml as etree
-#import xml.etree.ElementTree as ET
-
 import re
 import time
 import base64
@@ -24,45 +17,18 @@ import argparse
 
 import traceback
 
-# --- OPTIONAL LIBRARY LOADING FOR CODEJAIL ---
+# --- Conditionally load the sandbox module ---
 try:
-    from RestrictedPython import compile_restricted
-    from RestrictedPython.Guards import safe_globals
-    from RestrictedPython import safe_builtins, compile_restricted
-    from RestrictedPython.Guards import safe_globals as rp_safe_globals
-    from RestrictedPython.Eval import default_guarded_getiter
-    from RestrictedPython.Guards import guarded_unpack_sequence
-    from RestrictedPython import safe_builtins, compile_restricted
-    from RestrictedPython.Eval import (
-        default_guarded_getattr,
-        default_guarded_getitem,
-        default_guarded_getiter
-    )
-    from RestrictedPython.Guards import (
-        guarded_iter_unpack_sequence,
-        guarded_unpack_sequence
-    )
-
-    # Some versions use _apply_ internally:
-    try:
-        from RestrictedPython.Guards import guarded_apply
-    except ImportError:
-        guarded_apply = lambda func, *a, **kw: func(*a, **kw)
-
-    RESTRICTEDPYTHON_AVAILABLE = True
-    print("INFO: RestrictedPython library found. Sandboxed execution is available.")
-
-except ImportError as e:
-    RESTRICTEDPYTHON_AVAILABLE = False
-    print("WARNING: RestrictedPython library not found. Sandboxed execution will be disabled.")
-#    print("ImportError:", e)
-#    traceback.print_exc()
+    from sandbox import sandbox_module
+    SANDBOX_MODULE_AVAILABLE = sandbox_module.RESTRICTEDPYTHON_AVAILABLE
+    if SANDBOX_MODULE_AVAILABLE:
+        print("INFO: Sandbox module loaded successfully.")
+except ImportError:
+    SANDBOX_MODULE_AVAILABLE = False
+    print("WARNING: Sandbox module not found. Sandboxed execution will be disabled.")
 except Exception as e:
-    # In case the failure is *not* an ImportError
-    RESTRICTEDPYTHON_AVAILABLE = False
-    print("ERROR while loading RestrictedPython or guards:", e)
-#    traceback.print_exc()
-# --- END OF OPTIONAL LOADING ---
+    SANDBOX_MODULE_AVAILABLE = False
+    print(f"ERROR: Failed to load sandbox module: {e}")
 
 
 '''     ==== ==== Proc section === ===     '''
@@ -88,48 +54,10 @@ def needs_updated(params):
             return True
     return False
 
-
-
-def _execute_jailed(function_name: str, function_def: str,
-                    updated_step_params: Dict[str, Any], jail_config: Dict[str, Any]) -> tuple:
-    jail_script = f'''
-# Future-proof type hints evaluation
-from __future__ import annotations
-{function_def}
-params = {repr(updated_step_params)}
-try:
-    result, status = {function_name}(**params)
-    if isinstance(result, bytes):
-        res_data, res_type = base64.b64encode(result).decode('utf-8'), 'bytes'
-    else:
-        res_data, res_type = json.dumps(result), 'json'
-    output = {{'success': True, 'result_data': res_data, 'result_type': res_type, 'status': status}}
-except Exception as e:
-    output = {{'success': False, 'status': {{'status': {{'value': 1, 'reason': f'Jailed function error: {{repr(e)}}'}}}}}}
-jail_output = output
-'''
-    logging.debug("*jail*script*:\n%s", jail_script)
-    compiled_code = compile_restricted(jail_script, '<string>', 'exec')
-
-    restricted_globals = jail_config['safe_globals'].copy()
-    restricted_globals.update(jail_config['allowed_modules'])
-
-    exec(compiled_code, restricted_globals)
-    jail_output = restricted_globals['jail_output']
-
-    if jail_output['success']:
-        if jail_output['result_type'] == 'bytes':
-            result = base64.b64decode(jail_output['result_data'])
-        else:
-            result = json.loads(jail_output['result_data'])
-        status = jail_output['status']
-    else:
-        result, status = b'', jail_output['status']
-    return result, status
-
 def exec_proc_agent(function_name: str, version_suffix: str, step_params: Dict[str, Any], function_def: str, 
         force_recompile: bool = False, jail_config: Dict[str, Any] = None
         )-> tuple[bytes, Dict[str, Dict[str, Union[int, str]]]]:
+
     spacing = depth_manager.get_spacing()
     logging.info("%sStarting %s%s" % (spacing, function_name, version_suffix))
     logging.debug("%s******** \n step_params%s" % (spacing, step_params))
@@ -156,7 +84,7 @@ def exec_proc_agent(function_name: str, version_suffix: str, step_params: Dict[s
             result, status = func(**updated_step_params)
         else:
             logging.info("%sJailing function %s" % (spacing, function_name))
-            result, status = _execute_jailed(function_name, function_def, updated_step_params, jail_config)    
+            result, status = sandbox_module._execute_jailed(function_name, function_def, updated_step_params, jail_config)    
     except Exception as e:
         logging.error("%sAn error occurred while executing %s: %s" % (spacing, function_name, str(e)))
         status = {"status": {"value": 1, "reason": "Error executing %s: %s" % (function_name, str(e))}}
@@ -567,10 +495,8 @@ def load_config(default_file_path: str) -> Dict[str, Any]:
     config_parser = argparse.ArgumentParser(add_help=False)
     config_parser.add_argument('--config', default=default_file_path, 
                              help='Path to configuration file')
-    if RESTRICTEDPYTHON_AVAILABLE : 
-        config_parser.add_argument('--jail_dir', help='Path to the secure sandbox jail directory.')
-        config_parser.add_argument('--jail_user', default='agent_worker',
-                        help='The low-privilege user for the jail.')
+    if SANDBOX_MODULE_AVAILABLE : 
+        sandbox_module.add_sandbox_args(config_parser)
     
     # Parse only known args to get the config path, ignore everything else
     config_args, _ = config_parser.parse_known_args()
@@ -600,10 +526,8 @@ def config_app():
     parser.add_argument('--log-server', help='Enable remote logging to server:port')
     parser.add_argument('--dryrun', action='store_true', 
                        help='Bypasses network call, returns dummy message')
-    if RESTRICTEDPYTHON_AVAILABLE : 
-        parser.add_argument('--jail_dir', help='Path to the secure sandbox jail directory.')
-        parser.add_argument('--jail_user', default='agent_worker',
-                        help='The low-privilege user for the jail.')
+    if SANDBOX_MODULE_AVAILABLE : 
+        sandbox_module.add_sandbox_args(parser)
 
     # If no agent specified, show available agents
     if len(sys.argv) == 1 or (len(sys.argv) == 3 and '--config' in sys.argv):
@@ -657,10 +581,8 @@ def config_app():
     final_parser.add_argument('--log-server', help='Enable remote logging to server:port')
     final_parser.add_argument('--dryrun', action='store_true', 
                             help='Bypasses network call, returns dummy message')
-    if RESTRICTEDPYTHON_AVAILABLE : 
-        final_parser.add_argument('--jail_dir', help='Path to the secure sandbox jail directory.')
-        final_parser.add_argument('--jail_user', default='agent_worker',
-                        help='The low-privilege user for the jail.')
+    if SANDBOX_MODULE_AVAILABLE : 
+        sandbox_module.add_sandbox_args(final_parser)
     
     # Final parse with all arguments
     args = final_parser.parse_args()
@@ -682,90 +604,6 @@ def setup_depth_manager(config):
     max_depth = config['workflow_settings']['max_depth']
     depth_manager = WorkflowDepthManager(max_depth=max_depth)
 
-import pathlib
-
-def jailed_open(path, mode='r', *args, **kwargs):
-    import builtins
-    import os
-    from pathlib import Path
-
-    # True jail root (on macOS /tmp resolves to /private/tmp)
-    base_dir = Path("/tmp").resolve()
-
-    raw = Path(path)
-
-    # Map absolute paths into the jail by stripping the leading slash
-    # /Users/jrogers/hello -> /tmp/Users/jrogers/hello
-    rel = raw if not raw.is_absolute() else Path(*raw.parts[1:])
-
-    # Compose under jail root, then resolve to collapse any ".." or symlinks
-    target = (base_dir / rel).resolve()
-
-    # Enforce containment after resolution (prevents symlink traversal)
-    try:
-        # Python 3.9+: clean containment check
-        target.relative_to(base_dir)
-    except Exception:
-        if not str(target).startswith(str(base_dir)):
-            raise PermissionError(f"Access denied outside jail: {target}")
-
-    # Read-only policy
-    if any(flag in mode for flag in ('w', 'a', '+', 'x')):
-        raise PermissionError(f"Write modes not allowed: {mode}")
-
-    # Optional: debug
-    print(f"[JAILED OPEN] cwd={os.getcwd()} base_dir={base_dir} raw={raw} -> target={target} mode={mode}")
-
-    return builtins.open(target, mode, *args, **kwargs)
-
-
-def setup_jail_config(args):
-    if not hasattr(args, 'jail_dir') or args.jail_dir is None:
-        return None
-    if not hasattr(args, 'jail_user') or not args.jail_user:
-        print("ERROR: --jail_dir was provided, but --jail_user is missing or empty.", file=sys.stderr)
-        return None
-    try:
-        test_code = "result = 1 + 1"
-        compiled_code = compile_restricted(test_code, '<string>', 'exec')
-        test_globals = dict(safe_builtins)
-        exec(compiled_code, test_globals)
-        if test_globals.get('result') != 2:
-            print("ERROR: RestrictedPython test failed", file=sys.stderr)
-            return None
-    except ImportError:
-        print("ERROR: RestrictedPython not available. Install with: pip install RestrictedPython", file=sys.stderr)
-        return None
-    except Exception as e:
-        print(f"ERROR: RestrictedPython test failed: {e}", file=sys.stderr)
-        return None
-    allowed_modules = {
-        'json': __import__('json'), 'base64': __import__('base64'), 'sys': sys,
-        'math': __import__('math'), 'datetime': __import__('datetime'), 're': __import__('re'), }
-    safe_globals = dict(safe_builtins) 
-    safe_globals['open'] = jailed_open
-    safe_globals.update({
-        # Core guards/hooks that RestrictedPython might inject:
-        '_getattr_': default_guarded_getattr,
-        '_getitem_': default_guarded_getitem,
-        '_getiter_': default_guarded_getiter,
-        '_unpack_sequence_': guarded_unpack_sequence,
-        '_iter_unpack_sequence_': guarded_iter_unpack_sequence,
-        '_apply_': guarded_apply,
-        # Core builtins/types to avoid NameError on annotations etc:
-        'list': list, 'dict': dict, 'str': str, 'int': int,
-        'float': float, 'bool': bool,'bytes': bytes,
-        # Allow imports for already-injected modules:
-        '__builtins__': {**safe_builtins, '__import__': __import__}
-    })
-    return {
-        "enabled": True, "type": "restricted_python", "path": args.jail_dir, "user": args.jail_user,
-        "allowed_modules": allowed_modules, "safe_globals": safe_globals,
-        "restrictions": {
-            "allow_imports": True,  # loosened so modules can lazy-load submodules
-            "allow_file_access": False,
-            "allow_network": False, } }
-
 def main():
     start_time = time.perf_counter()
     #pdb.set_trace()
@@ -774,7 +612,7 @@ def main():
     global log_text_limit
     log_text_limit= int(config['workflow_settings']['log_text_limit'])
     results = {}
-    jail_config = setup_jail_config(args)
+    jail_config = sandbox_module.setup_jail_config(args) if SANDBOX_MODULE_AVAILABLE else None
 
     try:
         logging.info(f"Starting execution of workflow: {agent_name}")
